@@ -29,7 +29,13 @@ from app.core.errors import (
     ValidationError,
 )
 from app.core.vectors import pack_vector
-from app.db.models import Enrollment, EnrollmentSample, Owner
+from app.db.models import (
+    Enrollment,
+    EnrollmentSample,
+    Owner,
+    SampleFingerprint,
+    VerificationChallenge,
+)
 from app.schemas.voice import (
     DeleteProfileRequest,
     DeleteResponse,
@@ -175,10 +181,12 @@ async def create_enrollment(
         enrollment.embedding_dimensions = provider.dimensions
         enrollment.embedding_encrypted = owner_blob
         enrollment.model_version = provider.model_version
+        enrollment.bound_device_id = device.id
         enrollment.updated_at = datetime.now(UTC)
     else:
         enrollment = Enrollment(
             owner_id=device.owner_id,
+            bound_device_id=device.id,
             phrase_count=len(embeddings),
             embedding_dimensions=provider.dimensions,
             embedding_encrypted=owner_blob,
@@ -244,6 +252,7 @@ async def get_profile(
         phrase_count=enrollment.phrase_count if enrollment else 0,
         embedding_dimensions=enrollment.embedding_dimensions if enrollment else None,
         model_version=enrollment.model_version if enrollment else None,
+        device_bound=bool(enrollment and enrollment.bound_device_id == device.id),
         consent_granted=bool(consent and consent.granted),
         consent_policy_version=consent.policy_version if consent else None,
         created_at=owner.created_at,
@@ -271,6 +280,17 @@ async def delete_profile(
             )
         )
         await session.execute(delete(Enrollment).where(Enrollment.id.in_(enrollment_ids)))
+
+    # Fingerprints and challenges are voice-derived; a deleted profile should
+    # not leave them behind.
+    await session.execute(
+        delete(SampleFingerprint).where(SampleFingerprint.owner_id == device.owner_id)
+    )
+    await session.execute(
+        delete(VerificationChallenge).where(
+            VerificationChallenge.owner_id == device.owner_id
+        )
+    )
 
     await audit.record_event(
         session,

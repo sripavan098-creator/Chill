@@ -69,6 +69,24 @@ class Settings(BaseSettings):
     min_snr_db: float = 8.0
     max_clipping_ratio: float = 0.05
 
+    # Stronger voice auth (v0.5).
+    #
+    # Bind the voice profile to the device that enrolled it. Verification from
+    # any other device is refused, so a stolen token alone cannot be used from
+    # an attacker's phone. Turn off to allow the same owner to verify from a
+    # second device.
+    enforce_device_binding: bool = True
+    # Require a single-use, time-boxed nonce with each verification. The client
+    # obtains one from /verification/challenge and returns the id it was shown.
+    # A recording captured before the nonce existed cannot satisfy it, which
+    # makes a captured sample harder to replay.
+    require_verification_challenge: bool = True
+    challenge_ttl_seconds: int = 120
+    # How long a used recording is remembered so it cannot be replayed.
+    replay_window_seconds: int = 600
+    # How often (at most) the same device may ask for a challenge.
+    challenge_rate_limit: int = 30
+
     consent_policy_version: str = "2026-10-01"
 
     audit_log_retention_days: int = Field(default=90, ge=1)

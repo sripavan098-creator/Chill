@@ -69,7 +69,18 @@
 
 ## Milestone 5: Stronger Voice Auth (v0.5)
 
-- [ ] Add liveness checks.
-- [ ] Add replay protection.
-- [ ] Add device binding.
-- [ ] Tighten rate limits and lockout for production.
+- [x] Add replay protection (digest of decoded audio; a scored recording is refused).
+- [x] Add device binding (profile tied to the enrolling device; `CHILL_ENFORCE_DEVICE_BINDING`).
+- [x] Add single-use, time-boxed liveness challenges (`POST /v1/verification/challenge`).
+- [x] Tighten rate limits and lockout for production (verification and challenge limits).
+- [x] Alembic migration for the new tables and column.
+- [x] Tests for replay, device binding, challenges and retention.
+- [ ] Real liveness detection (spoken-phrase challenge-response, audio deepfake checks).
+- [ ] Tune the threshold against real field recordings before beta.
+
+## Milestone 6: Real Liveness (v0.6)
+
+- [ ] Spoken-phrase challenge-response, not just a read-back nonce.
+- [ ] Replay detection beyond exact-match (partial capture, re-recording).
+- [ ] Audio deepfake / synthetic-speech checks.
+- [ ] Device-binding management (re-bind, unbind, second device).

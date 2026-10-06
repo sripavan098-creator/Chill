@@ -186,26 +186,27 @@ async def test_api_enrollment_and_verification_with_ecapa(ecapa_client) -> None:
     assert enrolled.status_code == 200, enrolled.text
     assert enrolled.json()["model_version"] == "ecapa-voxceleb-v1"
 
+    async def submit(audio: bytes):
+        challenge = await ecapa_client.post(
+            "/v1/verification/challenge", headers=headers
+        )
+        assert challenge.status_code == 200, challenge.text
+        return await ecapa_client.post(
+            "/v1/verification",
+            json={
+                "duration_ms": 2400,
+                "audio_base64": b64(audio),
+                "challenge_id": challenge.json()["challenge_id"],
+            },
+            headers=headers,
+        )
+
     # A fresh owner phrase, unseen during enrollment, still verifies.
-    genuine = await ecapa_client.post(
-        "/v1/verification",
-        json={
-            "duration_ms": 2400,
-            "audio_base64": b64(_synth(VOICE_A, "Hey Chill, it is really me.")),
-        },
-        headers=headers,
-    )
+    genuine = await submit(_synth(VOICE_A, "Hey Chill, it is really me."))
     assert genuine.status_code == 200, genuine.text
     assert genuine.json()["outcome"] == "success", genuine.json()
 
     # A different speaker is rejected.
-    impostor = await ecapa_client.post(
-        "/v1/verification",
-        json={
-            "duration_ms": 2400,
-            "audio_base64": b64(_synth(VOICE_B, "Hey Chill, it is really me.")),
-        },
-        headers=headers,
-    )
+    impostor = await submit(_synth(VOICE_B, "Hey Chill, it is really me."))
     assert impostor.status_code == 200, impostor.text
     assert impostor.json()["outcome"] == "failure", impostor.json()

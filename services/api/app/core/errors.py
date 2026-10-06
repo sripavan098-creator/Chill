@@ -67,6 +67,31 @@ class LockedOutError(ChillError):
     code = "LOCKED_OUT"
 
 
+class ReplayDetectedError(ChillError):
+    """The submitted recording has already been used.
+
+    Distinct from a failed verification: it is rejected before scoring and does
+    not count toward the lockout.
+    """
+
+    status_code = 422
+    code = "REPLAY_DETECTED"
+
+
+class DeviceNotBoundError(ChillError):
+    """The voice profile is bound to a different device."""
+
+    status_code = 403
+    code = "DEVICE_NOT_BOUND"
+
+
+class ChallengeRequiredError(ChillError):
+    """A valid, unexpired, unused challenge nonce is required."""
+
+    status_code = 422
+    code = "CHALLENGE_REQUIRED"
+
+
 class NotFoundError(ChillError):
     status_code = 404
     code = "NOT_FOUND"

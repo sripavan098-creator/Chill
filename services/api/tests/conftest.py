@@ -152,6 +152,39 @@ def sample_audio(seed: int) -> bytes:
     return synth_speech(seed=seed)
 
 
+async def request_challenge(client: AsyncClient, token: str) -> str:
+    """Obtain a single-use verification challenge id."""
+    response = await client.post("/v1/verification/challenge", headers=auth(token))
+    assert response.status_code == 200, response.text
+    return response.json()["challenge_id"]
+
+
+async def verify(
+    client: AsyncClient,
+    token: str,
+    *,
+    audio: bytes,
+    duration_ms: int = 2400,
+    challenge_id: str | None = None,
+):
+    """POST a verification sample, fetching a challenge unless one is given.
+
+    Passing `challenge_id=None` still fetches a fresh one, which is what the
+    happy path needs. Tests that must omit the challenge post directly.
+    """
+    if challenge_id is None:
+        challenge_id = await request_challenge(client, token)
+    return await client.post(
+        "/v1/verification",
+        json={
+            "duration_ms": duration_ms,
+            "audio_base64": b64(audio),
+            "challenge_id": challenge_id,
+        },
+        headers=auth(token),
+    )
+
+
 async def enroll(
     client: AsyncClient,
     token: str,

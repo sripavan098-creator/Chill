@@ -18,18 +18,25 @@ from fastapi import APIRouter, Request
 from sqlalchemy import select
 
 from app.api.deps import DeviceDep, SessionDep
-from app.core.audio import AudioDecodeError, prepare
+from app.core.audio import AudioDecodeError, fingerprint, prepare
 from app.core.embeddings import cosine_similarity
 from app.core.errors import (
+    ChallengeRequiredError,
+    DeviceNotBoundError,
     EnrollmentRequiredError,
     LockedOutError,
+    ReplayDetectedError,
     SampleQualityError,
     ValidationError,
 )
 from app.core.vectors import unpack_vector
 from app.db.models import Enrollment
-from app.schemas.voice import VerificationResponse, VerifyRequest
-from app.services import audit, limits
+from app.schemas.voice import (
+    ChallengeResponse,
+    VerificationResponse,
+    VerifyRequest,
+)
+from app.services import audit, challenges, limits, replay
 
 router = APIRouter(tags=["verification"])
 
@@ -50,6 +57,38 @@ def _band(similarity: float, settings) -> str:
     if similarity >= settings.medium_confidence_threshold:
         return "medium"
     return "low"
+
+
+@router.post("/verification/challenge", response_model=ChallengeResponse)
+async def create_challenge(
+    request: Request,
+    session: SessionDep,
+    device: DeviceDep,
+) -> ChallengeResponse:
+    """Issue a single-use nonce for the next verification.
+
+    The client shows `nonce` to the speaker and returns `challenge_id` with the
+    recording. Requesting a challenge is cheap, so it is rate-limited to stop a
+    caller from minting them in bulk.
+    """
+    settings = request.app.state.settings
+    await limits.enforce_rate_limit(
+        session,
+        scope="challenge",
+        subject=device.id,
+        limit=settings.challenge_rate_limit,
+        window_seconds=settings.rate_limit_window_seconds,
+    )
+    issued = await challenges.issue(
+        session,
+        owner_id=device.owner_id,
+        device_id=device.id,
+        ttl_seconds=settings.challenge_ttl_seconds,
+    )
+    await session.commit()
+    return ChallengeResponse(
+        challenge_id=issued.id, nonce=issued.nonce, expires_at=issued.expires_at
+    )
 
 
 @router.post("/verification", response_model=VerificationResponse)
@@ -87,6 +126,24 @@ async def verify(
         await session.commit()
         raise EnrollmentRequiredError("No voice profile is enrolled.")
 
+    if (
+        settings.enforce_device_binding
+        and enrollment.bound_device_id is not None
+        and enrollment.bound_device_id != device.id
+    ):
+        await audit.record_event(
+            session,
+            event="verification.rejected",
+            outcome="denied",
+            owner_id=device.owner_id,
+            device_id=device.id,
+            detail="device_not_bound",
+        )
+        await session.commit()
+        raise DeviceNotBoundError(
+            "This voice profile is bound to another device."
+        )
+
     try:
         await limits.enforce_lockout(
             session,
@@ -108,6 +165,16 @@ async def verify(
     if payload.duration_ms < settings.min_sample_ms:
         raise ValidationError(
             f"Hold the phrase for at least {settings.min_sample_ms}ms."
+        )
+
+    if settings.require_verification_challenge:
+        if not payload.challenge_id:
+            raise ChallengeRequiredError(
+                "A challenge is required. Request one from /verification/challenge."
+            )
+        # Single-use and time-boxed, so a stale recording cannot be replayed.
+        await challenges.consume(
+            session, owner_id=device.owner_id, challenge_id=payload.challenge_id
         )
 
     try:
@@ -146,6 +213,25 @@ async def verify(
             "Record again in a quiet room and speak clearly."
         )
 
+    # A recording already scored for this owner cannot be used again. Checked
+    # before embedding so a replay never reaches the encoder.
+    sample_fingerprint = fingerprint(decoded.samples, decoded.sample_rate)
+    if await replay.is_replayed(
+        session, owner_id=device.owner_id, fingerprint=sample_fingerprint
+    ):
+        await audit.record_event(
+            session,
+            event="verification.rejected",
+            outcome="denied",
+            owner_id=device.owner_id,
+            device_id=device.id,
+            detail="replay",
+        )
+        await session.commit()
+        raise ReplayDetectedError(
+            "This recording has already been used. Record a fresh phrase."
+        )
+
     sample_embedding = await provider.embed(
         decoded.samples,
         sample_rate=decoded.sample_rate,
@@ -153,6 +239,12 @@ async def verify(
     )
     sample_duration_ms = decoded.quality.duration_ms
     del decoded
+
+    # The sample is now scored, so remember it: a second submission of the same
+    # recording is refused even if it arrives under a fresh challenge.
+    await replay.remember(
+        session, owner_id=device.owner_id, fingerprint=sample_fingerprint
+    )
 
     owner_embedding = unpack_vector(cipher.decrypt(enrollment.embedding_encrypted))
     similarity = cosine_similarity(sample_embedding, owner_embedding)

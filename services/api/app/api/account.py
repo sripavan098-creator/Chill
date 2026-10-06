@@ -18,7 +18,9 @@ from app.db.models import (
     Enrollment,
     EnrollmentSample,
     Owner,
+    SampleFingerprint,
     VerificationAttempt,
+    VerificationChallenge,
 )
 from app.schemas.voice import DeleteAccountRequest, DeleteResponse
 from app.services import audit
@@ -58,6 +60,12 @@ async def delete_account(
     await session.execute(delete(ConsentRecord).where(ConsentRecord.owner_id == owner_id))
     await session.execute(
         delete(VerificationAttempt).where(VerificationAttempt.owner_id == owner_id)
+    )
+    await session.execute(
+        delete(SampleFingerprint).where(SampleFingerprint.owner_id == owner_id)
+    )
+    await session.execute(
+        delete(VerificationChallenge).where(VerificationChallenge.owner_id == owner_id)
     )
 
     # Keep the audit trail but detach it from the deleted owner.

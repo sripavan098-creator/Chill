@@ -145,6 +145,14 @@ export async function verifyRemoteVoice(
   durationMs: number,
 ): Promise<{ outcome: VerificationOutcome; reason: string; attemptsRemaining: number }> {
   const token = await ensureDeviceSession('mobile');
+
+  // The backend requires a single-use challenge with each attempt. Fetch one
+  // per call; it is bound to this owner and expires quickly.
+  const challenge = await request<{ challenge_id: string }>(
+    '/v1/verification/challenge',
+    { method: 'POST', token },
+  );
+
   const result = await request<{
     outcome: string;
     reason: string;
@@ -153,7 +161,11 @@ export async function verifyRemoteVoice(
   }>('/v1/verification', {
     method: 'POST',
     token,
-    body: JSON.stringify({ duration_ms: durationMs, audio_base64: audioBase64 }),
+    body: JSON.stringify({
+      duration_ms: durationMs,
+      audio_base64: audioBase64,
+      challenge_id: challenge.challenge_id,
+    }),
   });
 
   return {

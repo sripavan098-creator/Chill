@@ -99,6 +99,11 @@ class Enrollment(Base):
     owner_id: Mapped[str] = mapped_column(
         ForeignKey("owners.id", ondelete="CASCADE"), unique=True, index=True
     )
+    # Device that enrolled the voice profile. Verification from any other
+    # device is refused unless device binding is turned off in settings.
+    bound_device_id: Mapped[str | None] = mapped_column(
+        ForeignKey("devices.id", ondelete="SET NULL"), index=True
+    )
     phrase_count: Mapped[int] = mapped_column(Integer, default=0)
     embedding_dimensions: Mapped[int] = mapped_column(Integer)
     # AES-256-GCM blob: nonce || ciphertext.
@@ -182,4 +187,59 @@ class RateLimitBucket(Base):
             "window_start",
             unique=True,
         ),
+    )
+
+
+class SampleFingerprint(Base):
+    """Digest of a recording the API has already seen.
+
+    Replay protection. When a sample is accepted for scoring, its fingerprint is
+    recorded; a later submission whose fingerprint matches an earlier one is
+    rejected before it reaches the encoder. The digest is of the decoded audio
+    and is not reversible, so no audio is retained. Rows are scoped to an owner
+    and can be pruned on a schedule like the audit log.
+    """
+
+    __tablename__ = "sample_fingerprints"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("owners.id", ondelete="CASCADE"), index=True
+    )
+    fingerprint: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    __table_args__ = (
+        Index("ix_sample_fingerprint_owner_digest", "owner_id", "fingerprint"),
+    )
+
+
+class VerificationChallenge(Base):
+    """A single-use liveness challenge.
+
+    The client requests a nonce, shows it to the speaker and submits the same
+    value back with the sample. A recording made earlier cannot satisfy a nonce
+    that did not exist when it was captured, so a matching fingerprint under a
+    fresh nonce is stronger evidence than a bare sample. This is a cheap
+    freshness check, not full liveness detection: a determined attacker can
+    still read the nonce aloud over a replayed recording. Challenge-response
+    with a spoken phrase and audio deepfake checks are future work.
+    """
+
+    __tablename__ = "verification_challenges"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("owners.id", ondelete="CASCADE"), index=True
+    )
+    device_id: Mapped[str | None] = mapped_column(
+        ForeignKey("devices.id", ondelete="SET NULL")
+    )
+    nonce: Mapped[str] = mapped_column(String(64))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    __table_args__ = (
+        Index("ix_verification_challenge_owner_nonce", "owner_id", "nonce"),
     )
