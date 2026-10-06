@@ -71,7 +71,7 @@ Useful checks:
 ```bash
 npm run typecheck
 npm run lint
-npm test
+npm test          # unit, hook and end-to-end journey tests
 ```
 
 Backend:

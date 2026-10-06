@@ -75,6 +75,7 @@
 - [x] Tighten rate limits and lockout for production (verification and challenge limits).
 - [x] Alembic migration for the new tables and column.
 - [x] Tests for replay, device binding, challenges and retention.
+- [x] End-to-end smoke tests for the mobile journey (welcome → consent → enrollment → login → fallback → home → settings), driving the real Expo Router app.
 - [ ] Real liveness detection (spoken-phrase challenge-response, audio deepfake checks).
 - [ ] Tune the threshold against real field recordings before beta.
 
