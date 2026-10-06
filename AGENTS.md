@@ -37,6 +37,25 @@ You are building Chill, a personal AI assistant with owner voice recognition.
 - Keep recording logic in `hooks/` and `features/`; screens stay presentational.
 - Run `npm test`, `npm run typecheck`, and `npm run lint` before committing.
 
+## Testing Rules (mobile)
+
+- `apps/mobile/__tests__/app.e2e.test.tsx` drives the real Expo Router app end to
+  end. Use it as the harness for screen-level work.
+- `@testing-library/react-native` v14 `render` is async. `renderRouter` returns
+  that promise with the router helpers attached, so `await` it and return it
+  inside an object (returning it directly makes `await` unwrap the helpers).
+- Import `screen` from `@testing-library/react-native`, not from
+  `expo-router/testing-library` (the re-export snapshots an empty placeholder).
+- `renderRouter` switches Jest to fake timers. Restore real timers right after
+  the first render (`jest.useRealTimers()`) or the mock API's `setTimeout`
+  delays never resolve.
+- Wrap `fireEvent.press`/`changeText` in `await act(async () => { ... })` so
+  React flushes the update before the next assertion.
+- Native audio, file system and storage are faked in `jest.setup.ts`; drive them
+  through `@/test/mocks/audioMockState`.
+- `standard-navigation` must stay in `transformIgnorePatterns` for expo-router's
+  testing library to render.
+
 ## Security Rules
 
 - No secrets in code.
