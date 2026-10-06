@@ -11,7 +11,21 @@ export type OnboardingStep =
   | 'enroll'
   | 'complete';
 
-export type ClipStatus = 'idle' | 'recording' | 'recorded' | 'error';
+/**
+ * Recording lifecycle for a single enrollment phrase.
+ *
+ * `preparing` covers opening the audio session, `processing` covers the mock
+ * analysis that runs after the file is captured.
+ */
+export type RecordingState =
+  | 'idle'
+  | 'preparing'
+  | 'recording'
+  | 'processing'
+  | 'success'
+  | 'error';
+
+export type ClipStatus = 'idle' | 'preparing' | 'recording' | 'processing' | 'recorded' | 'error';
 
 export interface EnrollmentPhrase {
   id: string;
@@ -22,12 +36,26 @@ export interface EnrollmentPhrase {
 export interface EnrollmentClip {
   phraseId: string;
   status: ClipStatus;
-  /** Mock duration in milliseconds. Real audio is never persisted in v0.1. */
+  /** Duration of the captured sample in milliseconds. */
   durationMs: number | null;
-  /** Mock signal quality between 0 and 1, reported after a capture. */
+  /** Signal quality between 0 and 1, reported after a capture. */
   quality?: number;
   error?: string;
 }
+
+/**
+ * Enrollment metadata persisted on the device.
+ *
+ * Raw audio is deliberately absent: only enrollment status is stored.
+ */
+export interface EnrollmentMetadata {
+  voiceEnrolled: boolean;
+  consentGranted: boolean;
+  enrollmentCompletedAt: string;
+  enrollmentVersion: string;
+}
+
+export type MicrophonePermissionStatus = 'undetermined' | 'granted' | 'denied';
 
 export interface ConsentRecord {
   granted: boolean;

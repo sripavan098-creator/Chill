@@ -1,19 +1,26 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
+import { RecorderOutcome, useVoiceRecorder } from '@/hooks/useVoiceRecorder';
 import { MAX_VERIFICATION_ATTEMPTS, verifyVoice } from '@/lib/api';
-import { simulateListen } from '@/lib/mockVoiceRecorder';
 import { useChill } from '@/state/ChillContext';
 import { VerificationResult } from '@/types';
 
-export type VerificationPhase = 'idle' | 'listening' | 'verifying' | 'result' | 'error';
+export type VerificationPhase =
+  | 'idle'
+  | 'listening'
+  | 'verifying'
+  | 'result'
+  | 'error';
 
-const MOCK_LISTEN_MS = 2000;
+const LOGIN_MAX_RECORDING_MS = 3000;
 
 /**
- * Mock voice verification flow.
+ * Voice verification flow.
  *
- * The developer toggle in `settings.simulateOutcome` forces a pass or fail so
- * both the success and fallback paths stay testable without a real model.
+ * Records a real (temporary) login sample, then runs the mock verification
+ * step. The recording is deleted before the result is reported. The developer
+ * toggle in `settings.simulateOutcome` forces a pass or fail so both the
+ * success and fallback paths stay testable without a real model.
  */
 export function useVoiceVerification() {
   const { voiceProfile, settings, setSimulateOutcome } = useChill();
@@ -22,35 +29,58 @@ export function useVoiceVerification() {
   const [result, setResult] = useState<VerificationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const attemptRef = useRef(0);
+
+  const handleOutcome = useCallback(
+    async (outcome: RecorderOutcome) => {
+      if (outcome.status !== 'success') {
+        setError(outcome.error ?? 'Could not record. Please try again.');
+        setPhase('error');
+        return;
+      }
+
+      setPhase('verifying');
+      try {
+        const nextAttempt = attemptRef.current + 1;
+        const verification = await verifyVoice(settings.simulateOutcome, nextAttempt);
+        attemptRef.current = nextAttempt;
+        setAttempt(nextAttempt);
+        setResult(verification);
+        setError(null);
+        setPhase('result');
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : 'Voice verification could not run. Try again.',
+        );
+        setPhase('error');
+      }
+    },
+    [settings.simulateOutcome],
+  );
+
+  const recorder = useVoiceRecorder({
+    maxMs: LOGIN_MAX_RECORDING_MS,
+    processSample: false,
+    onOutcome: handleOutcome,
+  });
+
   const busy = phase === 'listening' || phase === 'verifying';
   const attemptLimitReached =
     attempt >= MAX_VERIFICATION_ATTEMPTS && result?.outcome === 'failure';
 
   const verify = useCallback(async () => {
-    if (busy) return null;
+    if (busy) return;
     setError(null);
     setResult(null);
     setPhase('listening');
-
-    try {
-      await simulateListen(MOCK_LISTEN_MS);
-      setPhase('verifying');
-
-      const nextAttempt = attempt + 1;
-      const verification = await verifyVoice(settings.simulateOutcome, nextAttempt);
-
-      setAttempt(nextAttempt);
-      setResult(verification);
-      setPhase('result');
-      return verification;
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Voice verification could not run. Try again.',
-      );
+    await recorder.start();
+    // The recorder flips to `error` internally on failure; mirror that here.
+    if (recorder.state === 'error') {
       setPhase('error');
-      return null;
     }
-  }, [attempt, busy, settings.simulateOutcome]);
+  }, [busy, recorder]);
 
   const setSimulateFailure = useCallback(
     (next: boolean) => {
@@ -63,9 +93,10 @@ export function useVoiceVerification() {
     hasProfile: Boolean(voiceProfile),
     phase,
     busy,
+    elapsedMs: recorder.elapsedMs,
     attempt,
     result,
-    error,
+    error: error ?? recorder.error,
     attemptLimitReached,
     simulateFailure: settings.simulateOutcome === 'failure',
     setSimulateFailure,

@@ -15,6 +15,10 @@ export default function SettingsScreen() {
   const {
     voiceProfile,
     consent,
+    microphoneStatus,
+    microphoneGranted,
+    microphoneDenied,
+    openMicrophoneSettings,
     simulateFailure,
     busy,
     error,
@@ -84,6 +88,34 @@ export default function SettingsScreen() {
           }
         />
         <InfoRow label="Raw audio stored" value="None" tone="success" />
+      </Card>
+
+      <Card>
+        <View style={styles.cardHeader}>
+          <Heading>Microphone</Heading>
+          <Badge
+            label={
+              microphoneGranted
+                ? 'Granted'
+                : microphoneDenied
+                  ? 'Denied'
+                  : 'Not requested'
+            }
+            tone={microphoneGranted ? 'success' : microphoneDenied ? 'danger' : 'warning'}
+          />
+        </View>
+        <Caption>
+          Chill uses the microphone only to enroll and recognize your voice.
+        </Caption>
+        {microphoneDenied ? (
+          <Button
+            label="Open device settings"
+            variant="secondary"
+            onPress={openMicrophoneSettings}
+            accessibilityHint="Open the device settings for Chill"
+          />
+        ) : null}
+        <Caption color={colors.textSecondary}>{`Status: ${microphoneStatus}`}</Caption>
       </Card>
 
       <Card>

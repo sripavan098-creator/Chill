@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 
+import { useMicrophonePermission } from '@/hooks/useMicrophonePermission';
 import { useChill } from '@/state/ChillContext';
 
 /**
@@ -18,6 +19,8 @@ export function useSettings() {
   } = useChill();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const microphone = useMicrophonePermission();
 
   const deleteProfile = useCallback(async () => {
     setBusy(true);
@@ -53,6 +56,10 @@ export function useSettings() {
   return {
     voiceProfile,
     consent,
+    microphoneStatus: microphone.status,
+    microphoneGranted: microphone.granted,
+    microphoneDenied: microphone.denied,
+    openMicrophoneSettings: microphone.openSettings,
     simulateFailure: settings.simulateOutcome === 'failure',
     busy,
     error,
