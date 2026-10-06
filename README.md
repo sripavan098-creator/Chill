@@ -4,17 +4,17 @@ Chill is a personal AI assistant that recognizes its owner by voice.
 
 ## Current Milestone
 
-Chill v0.2 focuses on real audio recording:
+Chill v0.3 adds the voice backend:
 
-- Onboarding and microphone permission (with a denied state)
-- Voice biometric consent
-- Voice enrollment that records real audio samples
-- Duration checks and retry for each of the five phrases
-- Temporary recordings deleted before a sample is accepted
-- Local enrollment status (no raw audio stored)
-- Mock owner verification with success and failure paths
-- PIN fallback placeholder
-- Privacy settings placeholder
+- FastAPI service with device-scoped authentication
+- Consent gating: enrollment is rejected without recorded consent
+- Enrollment endpoint that stores an encrypted embedding and discards audio
+- Verification endpoint with similarity scoring, rate limits and lockout
+- Append-only audit log (no biometric payloads)
+- Delete voice profile and delete account endpoints
+- Mobile client wired to the backend behind `EXPO_PUBLIC_CHILL_API_URL`
+
+The embedding model is a deterministic placeholder until milestone 4.
 
 ## Principles
 
@@ -33,8 +33,7 @@ Chill v0.2 focuses on real audio recording:
 - Expo Router
 - expo-audio (recording)
 - AsyncStorage (local, non-biometric state)
-- FastAPI later
-- PostgreSQL later
+- FastAPI + PostgreSQL (voice backend, v0.3)
 - Speaker verification later
 
 ## Repository Layout
@@ -45,10 +44,12 @@ chill/
 ├── docs/               # PRD, tasks, security, privacy
 ├── design/             # Design system
 ├── apps/mobile/        # Expo + TypeScript mobile app
-└── services/           # Backend services (empty until v0.3)
+└── services/api/       # FastAPI voice backend
 ```
 
 ## Getting Started
+
+Mobile:
 
 ```bash
 cd apps/mobile
@@ -64,8 +65,16 @@ npm run lint
 npm test
 ```
 
+Backend:
+
+```bash
+cd services/api
+docker compose up --build     # or see services/api/README.md
+pytest
+```
+
 ## Status
 
-v0.2 records real audio for enrollment, keeps only enrollment status on the
-device, and still uses a mock verification model. See `docs/TASKS.md` for the
-current checklist.
+v0.3 adds the FastAPI voice backend and wires the mobile app to it behind a
+flag. Verification still uses a placeholder embedding model. See
+`docs/TASKS.md` for the current checklist.

@@ -1,0 +1,37 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: chill
+      POSTGRES_PASSWORD: chill
+      POSTGRES_DB: chill
+    volumes:
+      - chill-db:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chill -d chill"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      CHILL_ENV: development
+      CHILL_DATABASE_URL: postgresql+asyncpg://chill:chill@db:5432/chill
+      # Local-only key. Generate a real one for any shared deployment:
+      #   python -c "import base64,os;print(base64.b64encode(os.urandom(32)).decode())"
+      CHILL_ENCRYPTION_KEY: Y2hpbGwtZGV2LW9ubHkta2V5LTMyLWJ5dGVzLWxvbiE=
+      CHILL_TOKEN_SIGNING_KEY: dev-signing-key-change-me
+    ports:
+      - "8000:8000"
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+volumes:
+  chill-db:

@@ -2,9 +2,7 @@
 
 Backend services for Chill live here.
 
-No backend is implemented in v0.1. The mobile app uses mock services only.
-
-Planned for later milestones:
-
-- `services/api/` — FastAPI enrollment and verification endpoints (v0.3).
+- `services/api/` — FastAPI enrollment and verification service (v0.3). See
+  `services/api/README.md`. The mobile app uses it only when
+  `EXPO_PUBLIC_CHILL_API_URL` is set; otherwise it runs local-only.
 - `services/voice/` — Speaker verification model and embedding pipeline (v0.4).

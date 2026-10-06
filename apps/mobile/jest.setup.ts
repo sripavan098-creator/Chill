@@ -58,6 +58,21 @@ jest.mock('expo-audio', () => {
   };
 });
 
+jest.mock('expo-secure-store', () => {
+  const store = new Map<string, string>();
+  return {
+    isAvailableAsync: jest.fn(async () => true),
+    setItemAsync: jest.fn(async (key: string, value: string) => {
+      store.set(key, value);
+    }),
+    getItemAsync: jest.fn(async (key: string) => store.get(key) ?? null),
+    deleteItemAsync: jest.fn(async (key: string) => {
+      store.delete(key);
+    }),
+    __reset: () => store.clear(),
+  };
+});
+
 jest.mock('expo-file-system', () => {
   const state = require('@/test/mocks/audioMockState').audioMockState;
 
@@ -68,6 +83,7 @@ jest.mock('expo-file-system', () => {
       delete: jest.fn(() => {
         state.deletedFiles.push(uri);
       }),
+      arrayBuffer: jest.fn(async () => new ArrayBuffer(4)),
     })),
   };
 });
