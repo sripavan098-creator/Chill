@@ -1,0 +1,407 @@
+# Chill
+
+**Chill** is a privacy-first personal AI assistant that recognizes its owner by voice.
+
+The goal of Chill is to create a calm, friendly, and secure AI assistant that knows who its owner is, personalizes responses, and respects user privacy.
+
+> **Important:** Chill uses voice recognition as a convenience layer. It does not replace device-level biometrics, PINs, or OS security.
+
+---
+
+## ✨ Vision
+
+Chill should feel like:
+
+```text
+A calm, intelligent assistant that listens to you — and only you.
+```
+
+Chill is designed to:
+
+- Recognize the owner's voice
+- Personalize the assistant experience
+- Protect sensitive actions with stronger verification
+- Give users control over voice data
+- Allow deletion of voice profiles
+
+---
+
+## 🚧 Project Status
+
+This project is currently in **early development / MVP scaffold phase**.
+
+Current focus:
+
+```text
+Chill v0.1
+- Mobile onboarding
+- Microphone permission flow
+- Voice biometric consent
+- Voice enrollment UI
+- Mock owner verification
+- Privacy settings placeholder
+```
+
+Upcoming milestones:
+
+```text
+Chill v0.2
+- Real microphone recording
+- Audio quality feedback
+- Local enrollment state
+
+Chill v0.3
+- Backend API
+- Secure voice enrollment
+- Consent and audit logs
+
+Chill v0.4
+- Speaker verification model
+- Voice embeddings
+- Similarity scoring
+
+Chill v0.5
+- Liveness checks
+- Replay protection
+- Rate limiting
+- Device binding
+
+Chill v1.0
+- Private beta
+- App store readiness
+- Privacy policy compliance
+```
+
+---
+
+## 📱 Core Features
+
+### Owner Voice Recognition
+
+Chill will allow the owner to enroll their voice and later be recognized by the assistant.
+
+Example enrollment phrases:
+
+```text
+“Hey Chill, this is my voice.”
+“Hey Chill, unlock my assistant.”
+“Hey Chill, remember me.”
+“Hey Chill, keep my data private.”
+“Hey Chill, start listening.”
+```
+
+### Consent-First Onboarding
+
+Before voice enrollment, Chill will ask for:
+
+```text
+Microphone permission
+Explicit voice biometric consent
+Clear explanation of data usage
+```
+
+### Fallback Authentication
+
+Voice recognition alone is not enough for sensitive actions.
+
+Chill will support fallback methods such as:
+
+```text
+PIN
+Device biometric
+Explicit confirmation
+```
+
+### Privacy Controls
+
+Users should be able to:
+
+```text
+Delete their voice profile
+Withdraw consent
+Re-enroll their voice
+See what data is stored
+```
+
+---
+
+## 🧠 How Voice Recognition Works
+
+Chill’s owner recognition is based on **speaker verification**, not just speech-to-text.
+
+High-level flow:
+
+```text
+User speaks
+    ↓
+Voice activity detection
+    ↓
+Audio quality check
+    ↓
+Speaker embedding extraction
+    ↓
+Comparison with enrolled owner voiceprint
+    ↓
+Accept, reject, or ask for fallback
+```
+
+Planned technologies:
+
+```text
+Speaker verification:
+- ECAPA-TDNN
+- SpeechBrain
+- WeSpeaker
+
+Voice activity detection:
+- Silero VAD
+- WebRTC VAD
+
+Speech-to-text later:
+- Whisper
+- Vosk
+- Cloud STT options
+```
+
+---
+
+## 🔐 Security Model
+
+Chill follows a layered security model.
+
+```text
+Layer 1: App profile ownership
+Layer 2: Voice owner recognition
+Layer 3: PIN or OS biometric fallback
+Layer 4: Strong confirmation for high-risk actions
+```
+
+High-risk actions may require additional verification, such as:
+
+```text
+Deleting account
+Deleting voice data
+Changing security settings
+Accessing sensitive personal data
+Performing payments
+Executing dangerous automation
+```
+
+Chill will not claim that voice recognition is 100% secure.
+
+Voice can be affected by:
+
+```text
+Background noise
+Similar voices
+Recordings
+AI-generated voice
+Poor microphone quality
+```
+
+Because of this, Chill uses voice recognition as a convenience and personalization layer.
+
+---
+
+## 🧾 Privacy Principles
+
+Voice data is sensitive biometric data.
+
+Chill is designed around these principles:
+
+```text
+Explicit consent before enrollment
+Clear purpose explanation
+Minimal data collection
+No selling of voice data
+Deletion option
+Secure storage
+No hidden background listening
+```
+
+Default rule:
+
+```text
+Do not store raw audio recordings by default.
+Store encrypted voice embeddings when backend support is added.
+```
+
+---
+
+## 🛠 Tech Stack
+
+### Mobile App
+
+```text
+React Native
+Expo
+TypeScript
+Expo Router
+```
+
+### Planned Backend
+
+```text
+FastAPI
+PostgreSQL
+Redis for rate limiting
+Secure object storage if needed
+```
+
+### Planned AI/Voice Stack
+
+```text
+ECAPA-TDNN / SpeechBrain / WeSpeaker
+Silero VAD / WebRTC VAD
+Whisper or alternative STT later
+Embedding similarity scoring
+```
+
+---
+
+## 📁 Repository Structure
+
+```text
+chill/
+├── apps/
+│   └── mobile/              # React Native Expo app
+├── services/
+│   ├── api/                 # Main backend API, planned
+│   └── voice/               # Voice verification service, planned
+├── docs/
+│   ├── PRD.md               # Product requirements
+│   ├── TASKS.md             # Milestones and tasks
+│   ├── SECURITY.md          # Security model
+│   └── PRIVACY.md           # Privacy principles
+├── design/
+│   └── DESIGN.md            # Design system
+├── .github/
+│   └── copilot-instructions.md
+├── AGENTS.md                # Rules for AI coding agents
+├── README.md
+└── LICENSE
+```
+
+---
+
+## 🚀 Getting Started
+
+This project is currently in the scaffold phase.
+
+Once the mobile app is generated inside `apps/mobile`, run:
+
+```bash
+git clone https://github.com/sripavan098-creator/chill.git
+cd chill/apps/mobile
+npm install
+npx expo start
+```
+
+Then scan the QR code using:
+
+```text
+Expo Go on Android
+Expo Go on iOS
+```
+
+If you are developing on a Chromebook, you can use:
+
+```text
+GitHub Codespaces
+OpenHands Cloud
+Browser-based GitHub editor
+```
+
+---
+
+## 🧪 Development Workflow
+
+This project uses a branch-based GitHub workflow.
+
+```text
+main
+  ↑
+Pull Request
+  ↑
+Feature branch
+```
+
+Recommended branch names:
+
+```text
+feat/onboarding
+feat/voice-enrollment
+fix/audio-permission
+docs/readme-update
+```
+
+Do not push directly to `main`.
+
+Use pull requests and squash merges where possible.
+
+---
+
+## 🤖 AI Agent Rules
+
+This repository is designed to be developed with AI coding agents such as:
+
+```text
+OpenHands
+GitHub Copilot
+GitHub Codespaces
+Other browser-based coding agents
+```
+
+All agents must follow:
+
+```text
+AGENTS.md
+docs/PRD.md
+docs/SECURITY.md
+docs/PRIVACY.md
+design/DESIGN.md
+```
+
+Key rules:
+
+```text
+No hidden background listening
+No raw audio storage by default
+No voice-only high-risk actions
+No misleading security claims
+No unnecessary dependencies
+No direct pushes to main
+```
+
+---
+
+## ⚠️ Disclaimer
+
+Chill is under active development.
+
+Voice recognition is not guaranteed to be perfect and should not be used as the only security mechanism for sensitive operations.
+
+Biometric data processing may be subject to legal requirements depending on your region, including privacy and data protection laws.
+
+---
+
+## 🌱 Roadmap Summary
+
+```text
+v0.1 → Onboarding + consent + mock voice enrollment
+v0.2 → Real audio recording
+v0.3 → Backend API + secure storage
+v0.4 → Speaker verification model
+v0.5 → Liveness and anti-spoofing
+v1.0 → Private beta and app store preparation
+```
+
+---
+
+## 💬 Contact
+
+Maintainer: **Sripavan**
+
+GitHub: [sripavan098-creator](https://github.com/sripavan098-creator)
+
+Project name: **Chill**
