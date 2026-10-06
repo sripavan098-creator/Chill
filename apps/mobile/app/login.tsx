@@ -8,14 +8,19 @@ import { Card } from '@/components/ui/Card';
 import { Screen } from '@/components/ui/Screen';
 import { Body, Caption, Heading, Title } from '@/components/ui/TextBlock';
 import { MicButton } from '@/components/voice/MicButton';
+import { RecordingTimer } from '@/components/voice/RecordingTimer';
 import { useVoiceVerification } from '@/features/voice-auth/useVoiceVerification';
+import { useMicrophonePermission } from '@/hooks/useMicrophonePermission';
 import { colors, spacing } from '@/theme';
+
+const LOGIN_MAX_RECORDING_MS = 3000;
 
 export default function LoginScreen() {
   const {
     hasProfile,
     phase,
     busy,
+    elapsedMs,
     result,
     error,
     attemptLimitReached,
@@ -24,11 +29,26 @@ export default function LoginScreen() {
     verify,
   } = useVoiceVerification();
 
+  const permission = useMicrophonePermission();
   const succeeded = phase === 'result' && result?.outcome === 'success';
 
   useEffect(() => {
     if (succeeded) router.replace('/home');
   }, [succeeded]);
+
+  const onPressMic = async () => {
+    if (!permission.granted) {
+      const next = await permission.request();
+      if (next !== 'granted') return;
+    }
+    await verify();
+  };
+
+  const caption = busy
+    ? phase === 'verifying'
+      ? 'Checking your voice…'
+      : 'Listening…'
+    : 'Tap to speak';
 
   return (
     <Screen contentStyle={styles.content}>
@@ -43,13 +63,41 @@ export default function LoginScreen() {
 
       <View style={styles.micArea}>
         <MicButton
-          onPress={verify}
+          onPress={onPressMic}
           active={busy}
-          disabled={busy || !hasProfile}
-          caption={phase === 'verifying' ? 'Checking your voice…' : 'Tap to speak'}
-          accessibilityLabel="Start mock voice verification"
+          disabled={busy || !hasProfile || permission.denied}
+          caption={caption}
+          accessibilityLabel="Start voice verification"
         />
+        {phase === 'listening' ? (
+          <RecordingTimer
+            elapsedMs={elapsedMs}
+            maxMs={LOGIN_MAX_RECORDING_MS}
+            active
+          />
+        ) : null}
       </View>
+
+      {permission.denied ? (
+        <Card tone="danger">
+          <Heading color={colors.danger}>Microphone access is needed</Heading>
+          <Caption color={colors.danger}>
+            Chill uses your microphone only to enroll and recognize your voice. Enable
+            microphone permission in your device settings to sign in with voice.
+          </Caption>
+          <Button
+            label="Open settings"
+            variant="secondary"
+            onPress={permission.openSettings}
+            accessibilityHint="Open the device settings for Chill"
+          />
+          <Button
+            label="Use PIN instead"
+            variant="ghost"
+            onPress={() => router.push('/fallback')}
+          />
+        </Card>
+      ) : null}
 
       {!hasProfile ? (
         <Card tone="danger">
@@ -131,6 +179,7 @@ const styles = StyleSheet.create({
   },
   micArea: {
     alignItems: 'center',
+    gap: spacing.md,
     paddingVertical: spacing.lg,
   },
   resultHeader: {

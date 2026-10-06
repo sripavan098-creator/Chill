@@ -4,13 +4,15 @@ Chill is a personal AI assistant that recognizes its owner by voice.
 
 ## Current Milestone
 
-Chill v0.1 focuses on:
+Chill v0.2 focuses on real audio recording:
 
-- Onboarding
-- Microphone permission
+- Onboarding and microphone permission (with a denied state)
 - Voice biometric consent
-- Voice enrollment UI
-- Mock owner verification
+- Voice enrollment that records real audio samples
+- Duration checks and retry for each of the five phrases
+- Temporary recordings deleted before a sample is accepted
+- Local enrollment status (no raw audio stored)
+- Mock owner verification with success and failure paths
 - PIN fallback placeholder
 - Privacy settings placeholder
 
@@ -29,6 +31,8 @@ Chill v0.1 focuses on:
 - Expo
 - TypeScript
 - Expo Router
+- expo-audio (recording)
+- AsyncStorage (local, non-biometric state)
 - FastAPI later
 - PostgreSQL later
 - Speaker verification later
@@ -52,6 +56,16 @@ npm install
 npm run start
 ```
 
+Useful checks:
+
+```bash
+npm run typecheck
+npm run lint
+npm test
+```
+
 ## Status
 
-Planning and scaffold phase. See `docs/TASKS.md` for the current checklist.
+v0.2 records real audio for enrollment, keeps only enrollment status on the
+device, and still uses a mock verification model. See `docs/TASKS.md` for the
+current checklist.

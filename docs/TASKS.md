@@ -31,14 +31,17 @@
 - [x] Add navigation flow.
 - [x] Add basic accessibility labels.
 
-## Milestone 2: Real Audio Recording
+## Milestone 2: Real Audio Recording (v0.2)
 
-- [ ] Add expo-av or react-native-audio-recorder-player.
-- [ ] Request microphone permission properly.
-- [ ] Record enrollment audio.
-- [ ] Show audio level indicator.
-- [ ] Handle recording errors.
-- [ ] Store enrollment state locally.
+- [x] Use expo-audio (expo-av is deprecated on SDK 57).
+- [x] Request microphone permission properly, with a denied state and a settings shortcut.
+- [x] Record real enrollment audio to a temporary file.
+- [x] Show a recording timer and progress indicator.
+- [x] Check recording duration and reject samples that are too short or too long.
+- [x] Handle recording errors with retry.
+- [x] Delete the temporary recording before the sample is accepted.
+- [x] Store enrollment status locally (AsyncStorage), never raw audio.
+- [x] Add unit and integration tests for the recording, permission and enrollment flows.
 
 ## Milestone 3: Voice Backend
 

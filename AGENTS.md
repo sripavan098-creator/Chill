@@ -28,6 +28,15 @@ You are building Chill, a personal AI assistant with owner voice recognition.
 - Use StyleSheet or design tokens before adding heavy UI libraries.
 - Support loading, error, empty, and retry states.
 
+## Audio Rules (v0.2)
+
+- Record with expo-audio. expo-av is deprecated on SDK 57.
+- Write recordings to a temporary cache file only.
+- Delete the temporary file before a sample is accepted; never persist raw audio.
+- Store only enrollment status (voice enrolled, consent, timestamps) on the device.
+- Keep recording logic in `hooks/` and `features/`; screens stay presentational.
+- Run `npm test`, `npm run typecheck`, and `npm run lint` before committing.
+
 ## Security Rules
 
 - No secrets in code.

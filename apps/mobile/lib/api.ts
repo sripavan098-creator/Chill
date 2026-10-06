@@ -1,10 +1,20 @@
 /**
- * Mock Chill API client.
+ * Chill API facade.
  *
- * There is no backend in v0.1. Every call here is local and in-memory.
- * Milestone 3 replaces these functions with HTTPS calls to the FastAPI service.
+ * There is no backend in v0.2. These calls are local and persist only
+ * non-biometric metadata. Milestone 3 replaces them with HTTPS calls to the
+ * FastAPI service.
  */
 
+import {
+  buildEnrollmentMetadata,
+  clearEnrollmentMetadata,
+  getConsentRecord,
+  getEnrollmentMetadata,
+  saveConsentRecord,
+  saveEnrollmentMetadata,
+} from '@/features/voice-auth/enrollmentStore';
+import { mockVerify } from '@/lib/mockVoiceVerification';
 import { STORAGE_KEYS, readJson, storage, writeJson } from '@/lib/storage';
 import {
   ConsentRecord,
@@ -19,7 +29,10 @@ export const MAX_VERIFICATION_ATTEMPTS = 3;
 const MOCK_EMBEDDING_DIMENSIONS = 192;
 
 export class ApiError extends Error {
-  constructor(message: string, readonly code: string) {
+  constructor(
+    message: string,
+    readonly code: string,
+  ) {
     super(message);
     this.name = 'ApiError';
   }
@@ -43,12 +56,12 @@ export async function recordConsent(granted: boolean): Promise<ConsentRecord> {
     grantedAt: granted ? new Date().toISOString() : null,
     policyVersion: CONSENT_POLICY_VERSION,
   };
-  await writeJson(STORAGE_KEYS.consent, record);
+  await saveConsentRecord(record);
   return record;
 }
 
 export async function getConsent(): Promise<ConsentRecord | null> {
-  return readJson<ConsentRecord>(STORAGE_KEYS.consent);
+  return getConsentRecord();
 }
 
 export async function withdrawConsent(): Promise<void> {
@@ -56,10 +69,11 @@ export async function withdrawConsent(): Promise<void> {
 }
 
 /**
- * Creates a mock owner voice profile from completed enrollment clips.
+ * Finalises enrollment.
  *
- * The clips are used only to count valid samples. No audio leaves the device
- * and no raw recording is stored.
+ * The clips are used only to confirm that all five samples were captured. The
+ * temporary recordings have already been deleted, and only enrollment
+ * metadata is written to the device.
  */
 export async function createVoiceProfile(
   displayName: string,
@@ -77,57 +91,61 @@ export async function createVoiceProfile(
     throw new ApiError('Five voice samples are required.', 'INCOMPLETE_ENROLLMENT');
   }
 
-  const profile: VoiceProfile = {
+  const trimmedName = displayName.trim() || 'Chill owner';
+  const metadata = buildEnrollmentMetadata(true);
+  await saveEnrollmentMetadata(metadata);
+  await writeJson(STORAGE_KEYS.ownerName, trimmedName);
+  await writeJson(STORAGE_KEYS.onboardingComplete, true);
+
+  return {
     id: createId('vp'),
-    displayName: displayName.trim() || 'Chill owner',
-    createdAt: new Date().toISOString(),
+    displayName: trimmedName,
+    createdAt: metadata.enrollmentCompletedAt,
     embeddingDimensions: MOCK_EMBEDDING_DIMENSIONS,
     phraseCount: usable.length,
   };
-
-  await writeJson(STORAGE_KEYS.voiceProfile, profile);
-  return profile;
-}
-
-export async function getVoiceProfile(): Promise<VoiceProfile | null> {
-  return readJson<VoiceProfile>(STORAGE_KEYS.voiceProfile);
-}
-
-export async function deleteVoiceProfile(): Promise<void> {
-  await delay(600);
-  await storage.removeItem(STORAGE_KEYS.voiceProfile);
 }
 
 /**
- * Mock voice verification.
- *
- * `forcedOutcome` lets the developer toggle in the login screen drive the
- * result. Without it the mock compares a random similarity against a threshold.
+ * Rebuilds the display profile from persisted enrollment metadata.
  */
-export async function verifyVoice(
-  forcedOutcome: VerificationOutcome | null = null,
-  attempt = 1,
-): Promise<VerificationResult> {
-  await delay(400);
+export async function getVoiceProfile(): Promise<VoiceProfile | null> {
+  const metadata = await getEnrollmentMetadata();
+  if (!metadata?.voiceEnrolled) return null;
 
-  const profile = await getVoiceProfile();
-  if (!profile) {
-    throw new ApiError('No voice profile is enrolled.', 'NO_PROFILE');
-  }
-
-  const similarity = 0.6 + Math.random() * 0.39;
-  const outcome: VerificationOutcome =
-    forcedOutcome ?? (similarity >= 0.75 ? 'success' : 'failure');
-
-  const attemptsRemaining = Math.max(MAX_VERIFICATION_ATTEMPTS - attempt, 0);
+  const displayName =
+    (await readJson<string>(STORAGE_KEYS.ownerName)) ?? 'Chill owner';
 
   return {
-    outcome,
-    confidence: Number(similarity.toFixed(2)),
-    reason:
-      outcome === 'success'
-        ? 'Voice matched the enrolled owner profile.'
-        : 'Voice did not match closely enough.',
-    attemptsRemaining,
+    id: 'vp_local',
+    displayName,
+    createdAt: metadata.enrollmentCompletedAt,
+    embeddingDimensions: MOCK_EMBEDDING_DIMENSIONS,
+    phraseCount: 5,
   };
+}
+
+/**
+ * Deletes the voice profile and its local enrollment metadata.
+ */
+export async function deleteVoiceProfile(): Promise<void> {
+  await delay(600);
+  await clearEnrollmentMetadata();
+  await storage.removeItem(STORAGE_KEYS.ownerName);
+  await storage.removeItem(STORAGE_KEYS.onboardingComplete);
+}
+
+/**
+ * Mock voice verification. Delegates to the mock model so the developer
+ * toggle can force a pass or fail.
+ */
+export async function verifyVoice(
+  forcedOutcome: VerificationOutcome,
+  attempt = 1,
+): Promise<VerificationResult> {
+  const metadata = await getEnrollmentMetadata();
+  if (!metadata?.voiceEnrolled) {
+    throw new ApiError('No voice profile is enrolled.', 'NO_PROFILE');
+  }
+  return mockVerify(forcedOutcome, attempt);
 }

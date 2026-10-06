@@ -20,3 +20,11 @@ export function createInitialClips(): EnrollmentClip[] {
     durationMs: null,
   }));
 }
+
+export function countCaptured(clips: EnrollmentClip[]): number {
+  return clips.filter((clip) => clip.status === 'recorded').length;
+}
+
+export function allPhrasesCaptured(clips: EnrollmentClip[]): boolean {
+  return countCaptured(clips) === REQUIRED_PHRASE_COUNT;
+}

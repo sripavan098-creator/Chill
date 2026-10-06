@@ -2,7 +2,7 @@
   "expo": {
     "name": "Chill",
     "slug": "chill",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "chill",
@@ -15,10 +15,14 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.chill.assistant"
+      "bundleIdentifier": "com.chill.assistant",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Chill needs microphone access to enroll and recognize your voice."
+      }
     },
     "android": {
       "package": "com.chill.assistant",
+      "permissions": ["RECORD_AUDIO"],
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#0D9488"
@@ -39,6 +43,12 @@
           "backgroundColor": "#0D9488",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 160
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow Chill to access your microphone to enroll and recognize your voice."
         }
       ]
     ],

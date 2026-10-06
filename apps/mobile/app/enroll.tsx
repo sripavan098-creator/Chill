@@ -9,7 +9,6 @@ import { TextField } from '@/components/ui/TextField';
 import { Body, Caption, Title } from '@/components/ui/TextBlock';
 import { EnrollmentProgress } from '@/components/voice/EnrollmentProgress';
 import { PhraseCard } from '@/components/voice/PhraseCard';
-import { RecordingIndicator } from '@/components/voice/RecordingIndicator';
 import { useEnrollment } from '@/features/voice-auth/useEnrollment';
 import { useChill } from '@/state/ChillContext';
 import { colors, spacing } from '@/theme';
@@ -58,7 +57,8 @@ export default function EnrollScreen() {
       <View style={styles.header}>
         <Title>Voice enrollment</Title>
         <Body color={colors.textSecondary}>
-          Record the five phrases below. Each sample takes about three seconds.
+          Record the five phrases below. Each sample is checked for length, then the
+          temporary recording is deleted.
         </Body>
       </View>
 
@@ -85,8 +85,6 @@ export default function EnrollScreen() {
 
       <EnrollmentProgress completed={completedCount} total={total} />
 
-      <RecordingIndicator active={isRecording} />
-
       <View style={styles.phrases}>
         {phrases.map((phrase) => {
           const clip = clips.find((item) => item.phraseId === phrase.id);
@@ -99,15 +97,12 @@ export default function EnrollScreen() {
               active={activePhraseId === phrase.id}
               disabled={isRecording && activePhraseId !== phrase.id}
               onRecord={() => start(phrase.id)}
+              onStop={stop}
               onRetry={() => retry(phrase.id)}
             />
           );
         })}
       </View>
-
-      {isRecording ? (
-        <Button label="Stop recording" variant="secondary" onPress={stop} />
-      ) : null}
 
       {error ? <Caption color={colors.danger}>{error}</Caption> : null}
 

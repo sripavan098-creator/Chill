@@ -1,9 +1,12 @@
 /**
- * Mock key/value storage.
+ * Device storage.
  *
- * v0.1 keeps everything in memory so no biometric data touches the device.
- * Milestone 2 swaps this for expo-secure-store behind the same interface.
+ * v0.2 persists non-sensitive records (consent, enrollment status, settings)
+ * through AsyncStorage. Anything secret would move to SecureStore in a later
+ * milestone; nothing biometric is ever written here.
  */
+
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface StorageAdapter {
   getItem(key: string): Promise<string | null>;
@@ -14,34 +17,33 @@ export interface StorageAdapter {
 
 export const STORAGE_KEYS = {
   consent: 'chill.consent',
-  voiceProfile: 'chill.voiceProfile',
+  enrollment: 'chill.enrollment',
+  ownerName: 'chill.ownerName',
   settings: 'chill.settings',
   onboardingComplete: 'chill.onboardingComplete',
 } as const;
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];
 
-class InMemoryStorage implements StorageAdapter {
-  private store = new Map<string, string>();
-
+class AsyncStorageAdapter implements StorageAdapter {
   async getItem(key: string): Promise<string | null> {
-    return this.store.has(key) ? (this.store.get(key) as string) : null;
+    return AsyncStorage.getItem(key);
   }
 
   async setItem(key: string, value: string): Promise<void> {
-    this.store.set(key, value);
+    await AsyncStorage.setItem(key, value);
   }
 
   async removeItem(key: string): Promise<void> {
-    this.store.delete(key);
+    await AsyncStorage.removeItem(key);
   }
 
   async clear(): Promise<void> {
-    this.store.clear();
+    await AsyncStorage.clear();
   }
 }
 
-export const storage: StorageAdapter = new InMemoryStorage();
+export const storage: StorageAdapter = new AsyncStorageAdapter();
 
 export async function readJson<T>(key: string): Promise<T | null> {
   const raw = await storage.getItem(key);

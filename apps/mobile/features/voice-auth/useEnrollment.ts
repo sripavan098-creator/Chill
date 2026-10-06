@@ -1,16 +1,17 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
-import { MAX_MOCK_DURATION_MS, createMockRecorder, isUsableClip } from '@/lib/mockVoiceRecorder';
-import { ENROLLMENT_PHRASES, createInitialClips } from '@/lib/phrases';
+import { ENROLLMENT_PHRASES, createInitialClips } from '@/features/voice-auth/phrases';
+import { RecorderOutcome, useVoiceRecorder } from '@/hooks/useVoiceRecorder';
 import { useChill } from '@/state/ChillContext';
 import { EnrollmentClip } from '@/types';
 
-const TICK_MS = 250;
-
 /**
- * Drives the mock enrollment recording flow: start, tick, stop, retry and
- * final profile creation. All recording state lives here so the screen stays
- * presentational.
+ * Drives the real enrollment recording flow.
+ *
+ * Each phrase is recorded through `useVoiceRecorder`, which deletes the
+ * temporary file before reporting an outcome. Only clip status, duration and
+ * quality are kept in state, so the screen stays presentational and no raw
+ * audio survives.
  */
 export function useEnrollment() {
   const { completeEnrollment } = useChill();
@@ -18,22 +19,7 @@ export function useEnrollment() {
   const [activePhraseId, setActivePhraseId] = useState<string | null>(null);
   const [finishing, setFinishing] = useState(false);
 
-  const recorderRef = useRef<ReturnType<typeof createMockRecorder> | null>(null);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const stopTimer = useCallback(() => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      stopTimer();
-      recorderRef.current?.cancel();
-    };
-  }, [stopTimer]);
+  const activePhraseRef = useRef<string | null>(null);
 
   const setClip = useCallback((phraseId: string, patch: Partial<EnrollmentClip>) => {
     setClips((prev) =>
@@ -41,18 +27,17 @@ export function useEnrollment() {
     );
   }, []);
 
-  const finishRecording = useCallback(
-    async (phraseId: string, recorder: ReturnType<typeof createMockRecorder>) => {
-      stopTimer();
-      const session = await recorder.stop();
-      recorderRef.current = null;
-      setActivePhraseId(null);
+  // Recording outcomes arrive from the recorder, including auto-stopped takes.
+  const handleOutcome = useCallback(
+    (outcome: RecorderOutcome) => {
+      const phraseId = activePhraseRef.current;
+      if (!phraseId) return;
 
-      if (isUsableClip(session)) {
+      if (outcome.status === 'success') {
         setClip(phraseId, {
           status: 'recorded',
-          durationMs: session.durationMs,
-          quality: session.quality,
+          durationMs: outcome.captured.durationMs,
+          quality: outcome.captured.quality,
           error: undefined,
         });
       } else {
@@ -60,47 +45,23 @@ export function useEnrollment() {
           status: 'error',
           durationMs: null,
           quality: 0,
-          error: 'That sample was too short. Please hold the recording a little longer.',
+          error: outcome.error ?? 'Could not record. Please try again.',
         });
       }
-    },
-    [setClip, stopTimer],
-  );
 
-  const start = useCallback(
-    (phraseId: string) => {
-      const recorder = createMockRecorder();
-      recorderRef.current = recorder;
-      setActivePhraseId(phraseId);
-      setClip(phraseId, {
-        status: 'recording',
-        durationMs: 0,
-        quality: undefined,
-        error: undefined,
-      });
-
-      timerRef.current = setInterval(() => {
-        const session = recorder.tick((recorder.session.durationMs ?? 0) + TICK_MS);
-        setClip(phraseId, { durationMs: session.durationMs });
-        if (session.durationMs >= MAX_MOCK_DURATION_MS) {
-          void finishRecording(phraseId, recorder);
-        }
-      }, TICK_MS);
-    },
-    [finishRecording, setClip],
-  );
-
-  const stop = useCallback(() => {
-    if (!activePhraseId || !recorderRef.current) return;
-    void finishRecording(activePhraseId, recorderRef.current);
-  }, [activePhraseId, finishRecording]);
-
-  const retry = useCallback(
-    (phraseId: string) => {
-      stopTimer();
-      recorderRef.current?.cancel();
-      recorderRef.current = null;
+      activePhraseRef.current = null;
       setActivePhraseId(null);
+    },
+    [setClip],
+  );
+
+  const recorder = useVoiceRecorder({ onOutcome: handleOutcome });
+  const { reset: resetRecorder } = recorder;
+
+  // Drop the previous take before recording the same phrase again.
+  const preparePhrase = useCallback(
+    (phraseId: string) => {
+      resetRecorder();
       setClip(phraseId, {
         status: 'idle',
         durationMs: null,
@@ -108,16 +69,41 @@ export function useEnrollment() {
         error: undefined,
       });
     },
-    [setClip, stopTimer],
+    [resetRecorder, setClip],
   );
 
-  const reset = useCallback(() => {
-    stopTimer();
-    recorderRef.current?.cancel();
-    recorderRef.current = null;
+  const start = useCallback(
+    async (phraseId: string) => {
+      if (recorder.isActive) return;
+      preparePhrase(phraseId);
+      activePhraseRef.current = phraseId;
+      setActivePhraseId(phraseId);
+      setClip(phraseId, { status: 'preparing' });
+      await recorder.start();
+    },
+    [preparePhrase, recorder, setClip],
+  );
+
+  const stop = useCallback(async () => {
+    await recorder.stop();
+  }, [recorder]);
+
+  const retry = useCallback(
+    async (phraseId: string) => {
+      await recorder.cancel();
+      activePhraseRef.current = null;
+      setActivePhraseId(null);
+      preparePhrase(phraseId);
+    },
+    [preparePhrase, recorder],
+  );
+
+  const reset = useCallback(async () => {
+    await recorder.cancel();
+    activePhraseRef.current = null;
     setActivePhraseId(null);
     setClips(createInitialClips());
-  }, [stopTimer]);
+  }, [recorder]);
 
   const completedCount = useMemo(
     () => clips.filter((clip) => clip.status === 'recorded').length,
@@ -140,6 +126,7 @@ export function useEnrollment() {
     phrases: ENROLLMENT_PHRASES,
     clips,
     activePhraseId,
+    elapsedMs: recorder.elapsedMs,
     isRecording: activePhraseId !== null,
     completedCount,
     total: ENROLLMENT_PHRASES.length,
