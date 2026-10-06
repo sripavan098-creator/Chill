@@ -43,17 +43,21 @@
 - [x] Store enrollment status locally (AsyncStorage), never raw audio.
 - [x] Add unit and integration tests for the recording, permission and enrollment flows.
 
-## Milestone 3: Voice Backend
+## Milestone 3: Voice Backend (v0.3)
 
-- [ ] Create FastAPI service.
-- [ ] Add enrollment endpoints.
-- [ ] Add verification endpoints.
-- [ ] Add consent checks.
-- [ ] Add audit logs.
-- [ ] Add rate limits.
-- [ ] Store encrypted embeddings only.
+- [x] Create FastAPI service (`services/api`).
+- [x] Add enrollment endpoints (5 samples, encrypted embedding).
+- [x] Add verification endpoints (similarity scoring, lockout).
+- [x] Add consent checks (enrollment gated on recorded consent).
+- [x] Add audit logs (append-only, no biometric payloads).
+- [x] Add rate limits (fixed-window, DB-backed) and failed-attempt lockout.
+- [x] Store encrypted embeddings only (AES-256-GCM; raw audio discarded).
+- [x] Delete voice profile and delete account endpoints with step-up confirmation.
+- [x] Alembic migration, Dockerfile and docker-compose for local runs.
+- [x] Backend test suite (35 tests, real ASGI app over SQLite).
+- [x] Mobile client for the backend, behind `EXPO_PUBLIC_CHILL_API_URL`.
 
-## Milestone 4: Speaker Verification
+## Milestone 4: Speaker Verification (v0.4)
 
 - [ ] Integrate ECAPA-TDNN or WeSpeaker.
 - [ ] Add voice activity detection.

@@ -22,7 +22,9 @@
     },
     "android": {
       "package": "com.chill.assistant",
-      "permissions": ["RECORD_AUDIO"],
+      "permissions": [
+        "RECORD_AUDIO"
+      ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#0D9488"
@@ -50,7 +52,8 @@
         {
           "microphonePermission": "Allow Chill to access your microphone to enroll and recognize your voice."
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true

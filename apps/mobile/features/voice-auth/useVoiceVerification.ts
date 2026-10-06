@@ -42,7 +42,17 @@ export function useVoiceVerification() {
       setPhase('verifying');
       try {
         const nextAttempt = attemptRef.current + 1;
-        const verification = await verifyVoice(settings.simulateOutcome, nextAttempt);
+        const sample = outcome.captured.audioBase64
+          ? {
+              audioBase64: outcome.captured.audioBase64,
+              durationMs: outcome.captured.durationMs,
+            }
+          : null;
+        const verification = await verifyVoice(
+          settings.simulateOutcome,
+          nextAttempt,
+          sample,
+        );
         attemptRef.current = nextAttempt;
         setAttempt(nextAttempt);
         setResult(verification);

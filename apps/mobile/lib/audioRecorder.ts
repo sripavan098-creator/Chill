@@ -15,6 +15,8 @@ import {
 import type { AudioRecorder } from 'expo-audio';
 import { File } from 'expo-file-system';
 
+import { encodeBase64 } from '@/lib/base64';
+import { USE_REMOTE_API } from '@/lib/config';
 import { MicrophonePermissionStatus } from '@/types';
 
 export interface CapturedRecording {
@@ -23,6 +25,12 @@ export interface CapturedRecording {
   durationMs: number;
   /** Signal quality between 0 and 1, derived from duration in v0.2. */
   quality: number;
+  /**
+   * Base64 audio for the backend embedding step. Present only when a backend
+   * is configured, and held in memory just long enough to upload. Never
+   * persisted.
+   */
+  audioBase64?: string | null;
 }
 
 export interface RecordingHandle {
@@ -87,11 +95,17 @@ export async function startRecording(): Promise<RecordingHandle> {
       const durationMs =
         reportedSeconds > 0 ? Math.round(reportedSeconds * 1000) : Date.now() - startedAt;
       const uri = recorder.uri;
+
+      // With a backend configured the sample is read once, in memory, so the
+      // server can compute an embedding. The file itself is still deleted.
+      const audioBase64 = USE_REMOTE_API ? await readBase64(uri) : null;
+
       recorder.release?.();
       return {
         uri,
         durationMs,
         quality: estimateQuality(durationMs),
+        audioBase64,
       };
     },
     async cancel() {
@@ -107,6 +121,23 @@ export async function startRecording(): Promise<RecordingHandle> {
       await discardRecording(uri);
     },
   };
+}
+
+/**
+ * Reads a temporary recording as base64, for the one-time upload to the
+ * backend. Returns null when the file is gone or unreadable; the caller then
+ * simply skips the remote embedding step.
+ */
+async function readBase64(uri: string | null): Promise<string | null> {
+  if (!uri) return null;
+  try {
+    const file = new File(uri);
+    if (!file.exists) return null;
+    const buffer = await file.arrayBuffer();
+    return encodeBase64(new Uint8Array(buffer));
+  } catch {
+    return null;
+  }
 }
 
 /**

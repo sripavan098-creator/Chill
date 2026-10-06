@@ -16,6 +16,7 @@ import {
   withdrawConsent,
 } from '@/lib/api';
 import { STORAGE_KEYS, readJson, storage, writeJson } from '@/lib/storage';
+import type { RemoteEnrollmentSample } from '@/lib/voiceApiClient';
 import {
   ChillSettings,
   ConsentRecord,
@@ -38,6 +39,7 @@ interface ChillContextValue extends ChillState {
   completeEnrollment: (
     displayName: string,
     clips: EnrollmentClip[],
+    samples?: RemoteEnrollmentSample[],
   ) => Promise<VoiceProfile>;
   deleteVoiceProfile: () => Promise<void>;
   setSimulateOutcome: (outcome: VerificationOutcome) => Promise<void>;
@@ -95,8 +97,12 @@ export function ChillProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const completeEnrollment = useCallback(
-    async (displayName: string, clips: EnrollmentClip[]) => {
-      const voiceProfile = await createVoiceProfile(displayName, clips);
+    async (
+      displayName: string,
+      clips: EnrollmentClip[],
+      samples: RemoteEnrollmentSample[] = [],
+    ) => {
+      const voiceProfile = await createVoiceProfile(displayName, clips, samples);
       await writeJson(STORAGE_KEYS.onboardingComplete, true);
       setState((prev) => ({
         ...prev,
