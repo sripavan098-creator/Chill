@@ -12,3 +12,6 @@ htmlcov/
 *.egg-info/
 build/
 dist/
+
+# Local SpeechBrain/ECAPA model cache (symlinks into the HF cache).
+.models/
