@@ -46,7 +46,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(
         title="Chill Voice API",
-        version="0.3.0",
+        version="0.4.0",
         description=(
             "Enrollment and verification for the Chill personal assistant. "
             "Stores encrypted embeddings only; never raw audio."
@@ -64,7 +64,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/health", tags=["meta"])
     async def health() -> dict[str, str]:
-        return {"status": "ok", "version": "0.3.0"}
+        return {"status": "ok", "version": "0.4.0"}
 
     return app
 

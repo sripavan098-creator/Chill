@@ -4,17 +4,20 @@ Chill is a personal AI assistant that recognizes its owner by voice.
 
 ## Current Milestone
 
-Chill v0.3 adds the voice backend:
+Chill v0.4 adds real speaker verification:
 
-- FastAPI service with device-scoped authentication
-- Consent gating: enrollment is rejected without recorded consent
-- Enrollment endpoint that stores an encrypted embedding and discards audio
-- Verification endpoint with similarity scoring, rate limits and lockout
-- Append-only audit log (no biometric payloads)
-- Delete voice profile and delete account endpoints
-- Mobile client wired to the backend behind `EXPO_PUBLIC_CHILL_API_URL`
+- ECAPA-TDNN (SpeechBrain `spkrec-ecapa-voxceleb`) behind the `EmbeddingProvider` interface
+- Deterministic placeholder provider kept for the fast default test suite
+- Voice activity detection and sample quality gating before scoring
+- Calibrated confidence bands and `model_version` in the verification response
+- Audio decoded and embedded in the request scope; raw audio is still never persisted
 
-The embedding model is a deterministic placeholder until milestone 4.
+Carried over from v0.3: the FastAPI service with device-scoped authentication,
+consent gating, enrollment, verification with rate limits and lockout, an
+append-only audit log, and delete-profile/account endpoints.
+
+Voice is still one layer, not the security boundary. Liveness, replay
+protection and device binding land in v0.5.
 
 ## Principles
 
@@ -75,6 +78,7 @@ pytest
 
 ## Status
 
-v0.3 adds the FastAPI voice backend and wires the mobile app to it behind a
-flag. Verification still uses a placeholder embedding model. See
-`docs/TASKS.md` for the current checklist.
+v0.4 adds real speaker verification with ECAPA-TDNN, plus voice activity
+detection and sample quality gating. The fast test suite runs on the
+deterministic placeholder encoder; `pytest -m speaker` runs the real model.
+See `docs/TASKS.md` for the current checklist.

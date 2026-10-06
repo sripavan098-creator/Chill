@@ -70,6 +70,7 @@ class VerificationResponse(BaseModel):
     reason: str
     attempts_remaining: int
     locked_out: bool
+    model_version: str
 
 
 class ProfileResponse(BaseModel):

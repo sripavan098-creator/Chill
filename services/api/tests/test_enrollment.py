@@ -6,7 +6,15 @@ import pytest
 from cryptography.exceptions import InvalidTag
 from httpx import AsyncClient
 
-from tests.conftest import PHRASES, auth, b64, enroll, grant_consent, register_device
+from tests.conftest import (
+    PHRASES,
+    auth,
+    b64,
+    enroll,
+    grant_consent,
+    register_device,
+    sample_audio,
+)
 
 
 async def test_enrollment_stores_encrypted_embedding_only(client: AsyncClient, app) -> None:
@@ -45,7 +53,10 @@ async def test_enrollment_requires_five_samples(client: AsyncClient) -> None:
     token = device["access_token"]
     await grant_consent(client, token)
 
-    samples = [(f"phrase-{i + 1}", phrase.encode(), 2200) for i, phrase in enumerate(PHRASES[:3])]
+    samples = [
+        (f"phrase-{i + 1}", sample_audio(i + 1), 2400)
+        for i in range(len(PHRASES[:3]))
+    ]
     response = await enroll(client, token, samples=samples)
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "INCOMPLETE_ENROLLMENT"
@@ -56,7 +67,8 @@ async def test_enrollment_rejects_duplicate_phrases(client: AsyncClient) -> None
     token = device["access_token"]
     await grant_consent(client, token)
 
-    samples = [("same", phrase.encode(), 2200) for phrase in PHRASES]
+    audio = sample_audio(1)
+    samples = [(f"phrase-{i + 1}", audio, 2400) for i in range(len(PHRASES))]
     response = await enroll(client, token, samples=samples)
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "VALIDATION_ERROR"
@@ -68,7 +80,8 @@ async def test_enrollment_rejects_short_sample(client: AsyncClient) -> None:
     await grant_consent(client, token)
 
     samples = [
-        (f"phrase-{i + 1}", phrase.encode(), 400) for i, phrase in enumerate(PHRASES)
+        (f"phrase-{i + 1}", sample_audio(i + 1), 400)
+        for i in range(len(PHRASES))
     ]
     response = await enroll(client, token, samples=samples)
     assert response.status_code == 422

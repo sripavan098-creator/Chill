@@ -4,7 +4,15 @@ from __future__ import annotations
 
 from httpx import AsyncClient
 
-from tests.conftest import auth, b64, enroll, grant_consent, make_settings, register_device
+from tests.conftest import (
+    auth,
+    b64,
+    enroll,
+    grant_consent,
+    make_settings,
+    register_device,
+    synth_speech,
+)
 
 
 async def test_verification_rate_limit_returns_429(client: AsyncClient, tmp_path, app) -> None:
@@ -24,10 +32,17 @@ async def test_verification_rate_limit_returns_429(client: AsyncClient, tmp_path
             await grant_consent(http, token)
             assert (await enroll(http, token)).status_code == 200
 
-            payload = {"duration_ms": 2200, "audio_base64": b64(b"voice")}
+            payload = {
+                "duration_ms": 2400,
+                "audio_base64": b64(synth_speech(seed=1)),
+            }
             assert (
                 await http.post("/v1/verification", json=payload, headers=auth(token))
             ).status_code == 200
+            payload = {
+                "duration_ms": 2400,
+                "audio_base64": b64(synth_speech(seed=2)),
+            }
             assert (
                 await http.post("/v1/verification", json=payload, headers=auth(token))
             ).status_code == 200

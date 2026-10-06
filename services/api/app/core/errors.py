@@ -51,6 +51,17 @@ class RateLimitedError(ChillError):
     code = "RATE_LIMITED"
 
 
+class SampleQualityError(ChillError):
+    """The submitted audio was unusable (too quiet, noisy, clipped, no speech).
+
+    Distinct from a failed verification: it is rejected before scoring and does
+    not count toward the lockout.
+    """
+
+    status_code = 422
+    code = "SAMPLE_QUALITY"
+
+
 class LockedOutError(ChillError):
     status_code = 429
     code = "LOCKED_OUT"

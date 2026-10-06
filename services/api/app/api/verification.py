@@ -18,10 +18,12 @@ from fastapi import APIRouter, Request
 from sqlalchemy import select
 
 from app.api.deps import DeviceDep, SessionDep
+from app.core.audio import AudioDecodeError, prepare
 from app.core.embeddings import cosine_similarity
 from app.core.errors import (
     EnrollmentRequiredError,
     LockedOutError,
+    SampleQualityError,
     ValidationError,
 )
 from app.core.vectors import unpack_vector
@@ -31,22 +33,22 @@ from app.services import audit, limits
 
 router = APIRouter(tags=["verification"])
 
-CONFIDENCE_BANDS = (
-    (0.9, "high"),
-    (0.8, "medium"),
-    (0.0, "low"),
-)
-
 
 def _confidence(similarity: float) -> float:
-    """Map a similarity score onto a 0-1 confidence value."""
+    """Map a cosine similarity onto a 0-1 confidence value.
+
+    ECAPA similarities for the same speaker cluster well above zero and for
+    different speakers well below, so the raw score is shifted into a readable
+    range rather than reported as-is.
+    """
     return max(0.0, min(1.0, (similarity + 1.0) / 2.0))
 
 
-def _band(similarity: float) -> str:
-    for threshold, label in CONFIDENCE_BANDS:
-        if similarity >= threshold:
-            return label
+def _band(similarity: float, settings) -> str:
+    if similarity >= settings.high_confidence_threshold:
+        return "high"
+    if similarity >= settings.medium_confidence_threshold:
+        return "medium"
     return "low"
 
 
@@ -115,12 +117,47 @@ async def verify(
     if not audio:
         raise ValidationError("The sample is empty.")
 
-    sample_embedding = await provider.embed(audio, duration_ms=payload.duration_ms)
-    del audio
+    try:
+        decoded = prepare(audio)
+    except AudioDecodeError as exc:
+        raise ValidationError("The sample is not decodable audio.") from exc
+    finally:
+        del audio
+
+    issues = decoded.quality.problems(
+        min_speech_ms=settings.min_speech_ms,
+        min_snr_db=settings.min_snr_db,
+        max_clipping=settings.max_clipping_ratio,
+    )
+    if issues:
+        # A bad sample is not a failed authentication attempt: it is rejected
+        # before scoring, so it does not count toward the lockout.
+        await audit.record_event(
+            session,
+            event="verification.rejected",
+            outcome="denied",
+            owner_id=device.owner_id,
+            device_id=device.id,
+            detail=f"quality={','.join(issues)}",
+        )
+        await session.commit()
+        raise SampleQualityError(
+            f"The recording was rejected ({', '.join(issues)}). "
+            "Record again in a quiet room and speak clearly."
+        )
+
+    sample_embedding = await provider.embed(
+        decoded.samples,
+        sample_rate=decoded.sample_rate,
+        duration_ms=decoded.quality.duration_ms,
+    )
+    sample_duration_ms = decoded.quality.duration_ms
+    del decoded
 
     owner_embedding = unpack_vector(cipher.decrypt(enrollment.embedding_encrypted))
     similarity = cosine_similarity(sample_embedding, owner_embedding)
     passed = similarity >= settings.verification_threshold
+    band = _band(similarity, settings)
 
     failures = await limits.recent_failures(
         session, owner_id=device.owner_id, within_seconds=settings.lockout_seconds
@@ -132,8 +169,8 @@ async def verify(
         success=passed,
         similarity=similarity,
         threshold=settings.verification_threshold,
-        reason=_band(similarity),
-        duration_ms=payload.duration_ms,
+        reason=band,
+        duration_ms=sample_duration_ms,
     )
     await audit.record_event(
         session,
@@ -141,7 +178,7 @@ async def verify(
         outcome="ok" if passed else "denied",
         owner_id=device.owner_id,
         device_id=device.id,
-        detail=f"similarity={similarity:.3f} band={_band(similarity)}",
+        detail=f"band={band} model={provider.model_version}",
     )
 
     # Failures counted before this one, plus this one if it failed.
@@ -156,7 +193,8 @@ async def verify(
         similarity=round(similarity, 4),
         confidence=round(_confidence(similarity), 4),
         threshold=settings.verification_threshold,
-        reason=_band(similarity),
+        reason=band,
         attempts_remaining=attempts_remaining,
         locked_out=locked_out,
+        model_version=provider.model_version,
     )

@@ -59,8 +59,17 @@
 
 ## Milestone 4: Speaker Verification (v0.4)
 
-- [ ] Integrate ECAPA-TDNN or WeSpeaker.
-- [ ] Add voice activity detection.
-- [ ] Add liveness/replay checks.
-- [ ] Add confidence scoring.
-- [ ] Add fallback logic.
+- [x] Integrate ECAPA-TDNN (SpeechBrain `spkrec-ecapa-voxceleb`) behind `EmbeddingProvider`.
+- [x] Keep the deterministic placeholder provider for the fast default test suite.
+- [x] Add voice activity detection and sample quality gating before scoring.
+- [x] Add confidence scoring (calibrated bands, `model_version` in the response).
+- [x] Decode and embed in the request scope; raw audio is still never persisted.
+- [x] Opt-in `speaker` test suite exercising the real model, including end to end.
+- [ ] Tune the threshold against real field recordings before beta.
+
+## Milestone 5: Stronger Voice Auth (v0.5)
+
+- [ ] Add liveness checks.
+- [ ] Add replay protection.
+- [ ] Add device binding.
+- [ ] Tighten rate limits and lockout for production.

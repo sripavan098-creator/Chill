@@ -45,12 +45,43 @@ class Settings(BaseSettings):
     required_phrases: int = 5
     embedding_dimensions: int = 192
 
-    # Similarity threshold for a successful verification (placeholder model).
-    verification_threshold: float = 0.75
+    # Speaker encoder. "placeholder" is the deterministic stand-in used by the
+    # default test suite; "ecapa" is the real ECAPA-TDNN model.
+    embedding_provider: str = "placeholder"
+    # Directory the encoder caches its downloaded weights in.
+    model_cache_dir: str = "./.models"
+    # Torch device for the encoder.
+    model_device: str = "cpu"
+
+    # Verification thresholds. ECAPA cosine similarity is high for the same
+    # speaker and much lower across speakers. Measured on clean samples the
+    # same-speaker range is ~0.84-0.92 and different-speaker ~0.12-0.18, so
+    # 0.55 sits in the gap with margin. Re-tune against real field recordings
+    # before relying on it in production; voice remains one layer, not the
+    # boundary, for high-risk actions.
+    verification_threshold: float = 0.55
+    high_confidence_threshold: float = 0.75
+    medium_confidence_threshold: float = 0.65
+
+    # Sample quality gates, enforced after decoding and voice activity
+    # detection.
+    min_speech_ms: int = 1200
+    min_snr_db: float = 8.0
+    max_clipping_ratio: float = 0.05
 
     consent_policy_version: str = "2026-10-01"
 
     audit_log_retention_days: int = Field(default=90, ge=1)
+
+    @field_validator("embedding_provider")
+    @classmethod
+    def _validate_provider(cls, value: str) -> str:
+        allowed = {"placeholder", "ecapa"}
+        if value.lower() not in allowed:
+            raise ValueError(
+                f"CHILL_EMBEDDING_PROVIDER must be one of {sorted(allowed)}"
+            )
+        return value.lower()
 
     @field_validator("encryption_key")
     @classmethod
