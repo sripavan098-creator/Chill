@@ -10,9 +10,11 @@ from tests.conftest import (
     enroll,
     grant_consent,
     register_device,
+    request_challenge_body,
     sample_audio,
     silence_wav,
     synth_speech,
+    verify,
 )
 
 # The placeholder encoder is content-addressed, so the centroid of five
@@ -47,11 +49,7 @@ def _different_voice_audio() -> bytes:
 async def test_verification_succeeds_for_matching_voice(client: AsyncClient) -> None:
     token = await _enrolled_device(client)
 
-    response = await client.post(
-        "/v1/verification",
-        json={"duration_ms": 2400, "audio_base64": b64(_matching_audio())},
-        headers=auth(token),
-    )
+    response = await verify(client, token, audio=_matching_audio())
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["outcome"] == "success"
@@ -63,11 +61,7 @@ async def test_verification_succeeds_for_matching_voice(client: AsyncClient) -> 
 async def test_verification_fails_for_different_voice(client: AsyncClient) -> None:
     token = await _enrolled_device(client)
 
-    response = await client.post(
-        "/v1/verification",
-        json={"duration_ms": 2400, "audio_base64": b64(_different_voice_audio())},
-        headers=auth(token),
-    )
+    response = await verify(client, token, audio=_different_voice_audio())
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["outcome"] == "failure"
@@ -80,13 +74,47 @@ async def test_verification_requires_enrollment(client: AsyncClient) -> None:
     token = device["access_token"]
     await grant_consent(client, token)
 
+    response = await verify(client, token, audio=_matching_audio())
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "ENROLLMENT_REQUIRED"
+
+
+async def test_verification_requires_a_challenge(client: AsyncClient) -> None:
+    token = await _enrolled_device(client)
+
+    # No challenge_id: the server must refuse before scoring.
     response = await client.post(
         "/v1/verification",
         json={"duration_ms": 2400, "audio_base64": b64(_matching_audio())},
         headers=auth(token),
     )
-    assert response.status_code == 409
-    assert response.json()["error"]["code"] == "ENROLLMENT_REQUIRED"
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "CHALLENGE_REQUIRED"
+
+
+async def test_verification_rejects_a_used_challenge(client: AsyncClient) -> None:
+    token = await _enrolled_device(client)
+    challenge = await request_challenge_body(client, token)
+
+    first = await verify(
+        client,
+        token,
+        audio=_matching_audio(),
+        challenge_id=challenge["challenge_id"],
+        transcript=challenge["phrase"],
+    )
+    assert first.status_code == 200, first.text
+
+    # The same nonce cannot be presented twice.
+    second = await verify(
+        client,
+        token,
+        audio=_different_voice_audio(),
+        challenge_id=challenge["challenge_id"],
+        transcript=challenge["phrase"],
+    )
+    assert second.status_code == 422
+    assert second.json()["error"]["code"] == "CHALLENGE_REQUIRED"
 
 
 async def test_repeated_failures_trigger_lockout(client: AsyncClient) -> None:
@@ -94,40 +122,26 @@ async def test_repeated_failures_trigger_lockout(client: AsyncClient) -> None:
 
     # Distinct wrong-speaker samples, each scored against the enrolled centroid.
     for index in range(3):
-        payload = {
-            "duration_ms": 2400,
-            "audio_base64": b64(synth_speech(seed=90 + index, amplitude=0.55)),
-        }
-        response = await client.post("/v1/verification", json=payload, headers=auth(token))
+        response = await verify(
+            client, token, audio=synth_speech(seed=90 + index, amplitude=0.55)
+        )
         assert response.status_code == 200, response.text
 
-    payload = {
-        "duration_ms": 2400,
-        "audio_base64": b64(synth_speech(seed=200, amplitude=0.55)),
-    }
-    locked = await client.post("/v1/verification", json=payload, headers=auth(token))
+    locked = await verify(client, token, audio=synth_speech(seed=200, amplitude=0.55))
     assert locked.status_code == 429
     assert locked.json()["error"]["code"] == "LOCKED_OUT"
 
 
 async def test_verification_rejects_short_sample(client: AsyncClient) -> None:
     token = await _enrolled_device(client)
-    response = await client.post(
-        "/v1/verification",
-        json={"duration_ms": 200, "audio_base64": b64(_matching_audio())},
-        headers=auth(token),
-    )
+    response = await verify(client, token, audio=_matching_audio(), duration_ms=200)
     assert response.status_code == 422
 
 
 async def test_verification_rejects_silence(client: AsyncClient) -> None:
     """A valid but speechless recording is a quality rejection, not a failure."""
     token = await _enrolled_device(client)
-    response = await client.post(
-        "/v1/verification",
-        json={"duration_ms": 2400, "audio_base64": b64(silence_wav())},
-        headers=auth(token),
-    )
+    response = await verify(client, token, audio=silence_wav())
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "SAMPLE_QUALITY"
 
@@ -136,18 +150,13 @@ async def test_quality_rejection_does_not_count_toward_lockout(
     client: AsyncClient,
 ) -> None:
     token = await _enrolled_device(client)
-    payload = {"duration_ms": 2400, "audio_base64": b64(silence_wav())}
 
     for _ in range(5):
-        response = await client.post("/v1/verification", json=payload, headers=auth(token))
+        response = await verify(client, token, audio=silence_wav())
         assert response.status_code == 422
 
     # A good sample still gets scored rather than being locked out.
-    good = await client.post(
-        "/v1/verification",
-        json={"duration_ms": 2400, "audio_base64": b64(_matching_audio())},
-        headers=auth(token),
-    )
+    good = await verify(client, token, audio=_matching_audio())
     assert good.status_code == 200, good.text
 
 
@@ -155,11 +164,7 @@ async def test_audit_log_records_enrollment_and_verification(
     client: AsyncClient, app
 ) -> None:
     token = await _enrolled_device(client)
-    await client.post(
-        "/v1/verification",
-        json={"duration_ms": 2400, "audio_base64": b64(_matching_audio())},
-        headers=auth(token),
-    )
+    await verify(client, token, audio=_matching_audio())
 
     from sqlalchemy import select
 

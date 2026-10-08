@@ -23,6 +23,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.core.config import Settings
+from app.core.transcription import attach_transcript
 from app.main import create_app
 
 PHRASES = [
@@ -150,6 +151,55 @@ async def grant_consent(client: AsyncClient, token: str) -> None:
 def sample_audio(seed: int) -> bytes:
     """Distinct, speech-like audio for a phrase."""
     return synth_speech(seed=seed)
+
+
+async def request_challenge(client: AsyncClient, token: str) -> str:
+    """Obtain a single-use verification challenge id."""
+    response = await client.post("/v1/verification/challenge", headers=auth(token))
+    assert response.status_code == 200, response.text
+    return response.json()["challenge_id"]
+
+
+async def request_challenge_body(client: AsyncClient, token: str) -> dict:
+    """Obtain the full challenge body (id, nonce, phrase)."""
+    response = await client.post("/v1/verification/challenge", headers=auth(token))
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+async def verify(
+    client: AsyncClient,
+    token: str,
+    *,
+    audio: bytes,
+    duration_ms: int = 2400,
+    challenge_id: str | None = None,
+    transcript: str | None = None,
+):
+    """POST a verification sample, fetching a challenge unless one is given.
+
+    With the placeholder transcriber the phrase cannot be recognised from the
+    synthetic audio, so `transcript` is attached as what speech-to-text heard.
+    When a challenge is fetched here, the challenge phrase is used unless
+    `transcript` overrides it. That keeps the identity check (the real subject
+    of most tests) under test while the spoken-phrase check passes.
+    """
+    text = transcript
+    if challenge_id is None:
+        body = await request_challenge_body(client, token)
+        challenge_id = body["challenge_id"]
+        if transcript is None:
+            text = body.get("phrase")
+    with attach_transcript(text):
+        return await client.post(
+            "/v1/verification",
+            json={
+                "duration_ms": duration_ms,
+                "audio_base64": b64(audio),
+                "challenge_id": challenge_id,
+            },
+            headers=auth(token),
+        )
 
 
 async def enroll(

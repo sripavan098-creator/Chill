@@ -4,6 +4,7 @@ import {
   createRemoteEnrollment,
   deleteRemoteProfile,
   ensureDeviceSession,
+  requestVoiceChallenge,
   verifyRemoteVoice,
 } from '@/lib/voiceApiClient';
 import { clearDeviceSession } from '@/lib/deviceSession';
@@ -61,56 +62,81 @@ describe('ensureDeviceSession', () => {
   });
 });
 
-describe('verifyRemoteVoice', () => {
-  it('maps a backend success into the app result shape', async () => {
+describe('requestVoiceChallenge', () => {
+  it('returns the phrase the speaker must say', async () => {
     mockFetch((url) =>
       url.endsWith('/v1/devices')
         ? { status: 201, body: DEVICE_RESPONSE }
-        : {
-            status: 200,
-            body: {
-              outcome: 'success',
-              reason: 'matched',
-              attempts_remaining: 2,
-              locked_out: false,
-            },
-          },
+        : { status: 200, body: { challenge_id: 'challenge-1', phrase: 'alpha bravo' } },
     );
 
-    const result = await verifyRemoteVoice('AAAA', 2200);
+    const challenge = await requestVoiceChallenge();
+    expect(challenge.challengeId).toBe('challenge-1');
+    expect(challenge.phrase).toBe('alpha bravo');
+  });
+
+  it('returns a null phrase when spoken challenges are disabled', async () => {
+    mockFetch((url) =>
+      url.endsWith('/v1/devices')
+        ? { status: 201, body: DEVICE_RESPONSE }
+        : { status: 200, body: { challenge_id: 'challenge-1' } },
+    );
+
+    const challenge = await requestVoiceChallenge();
+    expect(challenge.phrase).toBeNull();
+  });
+});
+
+describe('verifyRemoteVoice', () => {
+  it('maps a backend success into the app result shape', async () => {
+    const calls = mockFetch(() =>
+      ({
+        status: 200,
+        body: {
+          outcome: 'success',
+          reason: 'matched',
+          attempts_remaining: 2,
+          locked_out: false,
+        },
+      }),
+    );
+
+    const result = await verifyRemoteVoice('AAAA', 2200, 'challenge-1');
     expect(result.outcome).toBe('success');
     expect(result.attemptsRemaining).toBe(2);
+
+    // The caller-supplied challenge id is sent with the sample.
+    const verifyCall = calls.find((call) => call.url.endsWith('/v1/verification'));
+    const body = JSON.parse(String(verifyCall?.init.body));
+    expect(body.challenge_id).toBe('challenge-1');
+    expect(verifyCall?.init.method).toBe('POST');
   });
 
   it('reports a lockout through the reason text', async () => {
-    mockFetch((url) =>
-      url.endsWith('/v1/devices')
-        ? { status: 201, body: DEVICE_RESPONSE }
-        : {
-            status: 429,
-            body: {
-              error: {
-                code: 'LOCKED_OUT',
-                message: 'Too many failed attempts.',
-              },
-            },
-          },
-    );
+    mockFetch(() => ({
+      status: 429,
+      body: {
+        error: {
+          code: 'LOCKED_OUT',
+          message: 'Too many failed attempts.',
+        },
+      },
+    }));
 
-    await expect(verifyRemoteVoice('AAAA', 2200)).rejects.toBeInstanceOf(BackendError);
+    await expect(
+      verifyRemoteVoice('AAAA', 2200, 'challenge-1'),
+    ).rejects.toBeInstanceOf(BackendError);
   });
 
   it('surfaces the backend error code and status', async () => {
-    mockFetch((url) =>
-      url.endsWith('/v1/devices')
-        ? { status: 201, body: DEVICE_RESPONSE }
-        : {
-            status: 403,
-            body: { error: { code: 'CONSENT_REQUIRED', message: 'Consent required.' } },
-          },
-    );
+    mockFetch(() => ({
+      status: 403,
+      body: { error: { code: 'CONSENT_REQUIRED', message: 'Consent required.' } },
+    }));
 
-    await expect(verifyRemoteVoice('AAAA', 2200)).rejects.toMatchObject({
+    await expect(
+      verifyRemoteVoice('AAAA', 2200, 'challenge-1'),
+    ).rejects.toMatchObject({
       code: 'CONSENT_REQUIRED',
       status: 403,
     });
