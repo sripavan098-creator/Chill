@@ -81,9 +81,36 @@
 - [ ] Audio deepfake checks.
 - [ ] Tune the threshold against real field recordings before beta.
 
-## Milestone 6: Real Liveness (v0.6)
+## Milestone 6: Assistant — LLM, STT, TTS, Memory (v0.6)
 
-- [x] Spoken-phrase challenge-response, not just a read-back nonce.
+- [x] LLM chat endpoint (`POST /v1/assistant/chat`) with conversation history.
+- [x] Streaming chat over SSE (`POST /v1/assistant/chat/stream`).
+- [x] Pluggable LLM provider: deterministic placeholder for tests, OpenAI-compatible for real use.
+- [x] Speech-to-text endpoint (`POST /v1/assistant/transcribe`) for dictation. This is not authentication and never replaces voice verification.
+- [x] Text-to-speech endpoint (`POST /v1/assistant/speak`) returning WAV audio.
+- [x] Long-term personal memory: `POST/GET/DELETE /v1/assistant/memories` and `POST /v1/assistant/memories/search`.
+- [x] Retrieval-augmented chat: the top memories are retrieved and placed in the system prompt as untrusted context.
+- [x] Text embeddings stored encrypted (AES-256-GCM), never as plaintext; no embeddings in any response.
+- [x] Alembic migration for `chat_messages` and `memories`.
+- [x] Account deletion removes chat history and memories.
+- [x] Assistant test suite (chat, streaming, memory ranking, STT, TTS, isolation).
+
+## Milestone 7: Action Engine (v0.7)
+
+- [x] Tool registry with explicit risk levels (low / medium / high); unknown tools refused.
+- [x] Low-risk actions run immediately; medium- and high-risk actions wait for approval.
+- [x] Approval cards: `POST /v1/actions/{id}/approve` and `/deny`, plus listing and lookup.
+- [x] Step-up confirmation: a high-risk action also requires typing `CONFIRM`, so voice recognition is never sufficient on its own.
+- [x] Approvals expire after a configurable TTL and are capped per owner.
+- [x] Actions are owner-scoped: one owner cannot see, approve or run another's action.
+- [x] The assistant can propose an action from chat; the engine still applies the risk rules.
+- [x] Append-only audit log for requested / approved / denied / executed / failed / rejected.
+- [x] Alembic migration for `action_requests`.
+- [x] Account deletion removes the owner's actions.
+- [x] Action Engine test suite (gating, approvals, confirmation, isolation, chat bridge).
+
+## Deferred: Deeper Liveness
+
 - [ ] Replay detection beyond exact-match (partial capture, re-recording).
 - [ ] Audio deepfake / synthetic-speech checks.
 - [ ] Device-binding management (re-bind, unbind, second device).

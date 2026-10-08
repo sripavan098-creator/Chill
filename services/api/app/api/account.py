@@ -13,10 +13,13 @@ from sqlalchemy import delete
 from app.api.deps import DeviceDep, SessionDep
 from app.core.errors import ValidationError
 from app.db.models import (
+    ActionRequest,
+    ChatMessage,
     ConsentRecord,
     Device,
     Enrollment,
     EnrollmentSample,
+    Memory,
     Owner,
     SampleFingerprint,
     VerificationAttempt,
@@ -66,6 +69,14 @@ async def delete_account(
     )
     await session.execute(
         delete(VerificationChallenge).where(VerificationChallenge.owner_id == owner_id)
+    )
+
+    # Assistant data: the conversation and the memories the owner asked Chill to
+    # keep are personal data too, so they go with the account.
+    await session.execute(delete(ChatMessage).where(ChatMessage.owner_id == owner_id))
+    await session.execute(delete(Memory).where(Memory.owner_id == owner_id))
+    await session.execute(
+        delete(ActionRequest).where(ActionRequest.owner_id == owner_id)
     )
 
     # Keep the audit trail but detach it from the deleted owner.

@@ -33,8 +33,6 @@ from app.db.models import (
     Enrollment,
     EnrollmentSample,
     Owner,
-    SampleFingerprint,
-    VerificationChallenge,
 )
 from app.schemas.voice import (
     DeleteProfileRequest,
@@ -44,6 +42,7 @@ from app.schemas.voice import (
     ProfileResponse,
 )
 from app.services import audit
+from app.services.voice_profile import purge_enrollment
 
 router = APIRouter(tags=["enrollment"])
 
@@ -269,28 +268,9 @@ async def delete_profile(
     if payload.confirm != DELETE_CONFIRMATION:
         raise ValidationError("Deleting the voice profile requires confirmation.")
 
-    result = await session.execute(
-        select(Enrollment.id).where(Enrollment.owner_id == device.owner_id)
-    )
-    enrollment_ids = result.scalars().all()
-    if enrollment_ids:
-        await session.execute(
-            delete(EnrollmentSample).where(
-                EnrollmentSample.enrollment_id.in_(enrollment_ids)
-            )
-        )
-        await session.execute(delete(Enrollment).where(Enrollment.id.in_(enrollment_ids)))
-
-    # Fingerprints and challenges are voice-derived; a deleted profile should
-    # not leave them behind.
-    await session.execute(
-        delete(SampleFingerprint).where(SampleFingerprint.owner_id == device.owner_id)
-    )
-    await session.execute(
-        delete(VerificationChallenge).where(
-            VerificationChallenge.owner_id == device.owner_id
-        )
-    )
+    # Removes the enrollment, its samples, replay fingerprints and outstanding
+    # challenges together.
+    await purge_enrollment(session, owner_id=device.owner_id)
 
     await audit.record_event(
         session,

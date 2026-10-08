@@ -68,3 +68,32 @@ Chill v0.1 includes:
 - No selling of voice data.
 - Minimal data collection.
 - Clear privacy policy.
+
+## v0.6 Scope: Assistant (LLM, STT, TTS, Memory)
+
+Once the owner is verified, Chill can hold a conversation and remember things.
+
+1. Chat with the assistant, with streaming replies.
+2. Speech-to-text for dictation. This is not authentication.
+3. Text-to-speech replies in the assistant's voice.
+4. Long-term personal memory: save, list, search and delete facts.
+5. Retrieval-augmented answers: the closest memories are retrieved and used as
+   context for the reply.
+
+Non-goals for v0.6: fine-tuning, a hosted vector database, multi-user memory
+sharing, and using STT for authentication.
+
+## v0.7 Scope: Action Engine
+
+The assistant can propose actions, under explicit risk rules.
+
+1. A tool registry, where every tool declares a risk level.
+2. Low-risk actions run immediately.
+3. Medium- and high-risk actions become approval cards and run only on approval.
+4. High-risk actions also require an explicit confirmation phrase.
+5. Owner-scoped actions, approval TTLs, a pending cap, and an audit trail.
+6. The assistant may propose an action from chat; the engine still applies the
+   risk rules.
+
+Non-goals for v0.7: arbitrary code execution, tools that touch the operating
+system, payments, and any action that bypasses the owner's approval.

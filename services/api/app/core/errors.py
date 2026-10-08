@@ -109,6 +109,44 @@ class NotFoundError(ChillError):
     code = "NOT_FOUND"
 
 
+class ActionNotFoundError(NotFoundError):
+    """The requested action does not exist, or is not the caller's."""
+
+    code = "ACTION_NOT_FOUND"
+
+
+class ActionNotAllowedError(ChillError):
+    """Actions are disabled, or this tool is not on the deployment's allowlist."""
+
+    status_code = 403
+    code = "ACTION_NOT_ALLOWED"
+
+
+class ActionPendingError(ChillError):
+    """The action is not in a state that allows this transition."""
+
+    status_code = 409
+    code = "ACTION_NOT_PENDING"
+
+
+class ConfirmationRequiredError(ChillError):
+    """A high-risk action needs an explicit step-up confirmation.
+
+    Approval alone is not enough for the most dangerous tools: the caller must
+    echo the confirmation phrase. Voice recognition is never sufficient.
+    """
+
+    status_code = 403
+    code = "CONFIRMATION_REQUIRED"
+
+
+class TooManyPendingActionsError(ChillError):
+    """The owner has too many actions awaiting approval."""
+
+    status_code = 429
+    code = "TOO_MANY_PENDING_ACTIONS"
+
+
 async def chill_error_handler(_: Request, exc: ChillError) -> JSONResponse:
     headers = {}
     if exc.status_code == 429:

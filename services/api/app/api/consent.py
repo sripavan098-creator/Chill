@@ -10,18 +10,13 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Request
-from sqlalchemy import delete, select
+from sqlalchemy import select
 
 from app.api.deps import DeviceDep, SessionDep
-from app.db.models import (
-    ConsentRecord,
-    Enrollment,
-    EnrollmentSample,
-    SampleFingerprint,
-    VerificationChallenge,
-)
+from app.db.models import ConsentRecord
 from app.schemas.voice import ConsentRequest, ConsentResponse
 from app.services import audit
+from app.services.voice_profile import purge_enrollment
 
 router = APIRouter(tags=["consent"])
 
@@ -67,7 +62,7 @@ async def set_consent(
     # Withdrawing consent removes the enrollment: the user asked us to stop
     # processing their voice, so keeping the embedding would contradict that.
     if not payload.granted:
-        await _purge_enrollment(session, device.owner_id)
+        await purge_enrollment(session, owner_id=device.owner_id)
 
     await audit.record_event(
         session,
@@ -94,28 +89,3 @@ async def get_consent(
             withdrawn_at=None,
         )
     return to_response(record)
-
-
-async def _purge_enrollment(session: SessionDep, owner_id: str) -> None:
-    result = await session.execute(
-        select(Enrollment.id).where(Enrollment.owner_id == owner_id)
-    )
-    enrollment_ids = result.scalars().all()
-    if enrollment_ids:
-        await session.execute(
-            delete(EnrollmentSample).where(
-                EnrollmentSample.enrollment_id.in_(enrollment_ids)
-            )
-        )
-        await session.execute(
-            delete(Enrollment).where(Enrollment.id.in_(enrollment_ids))
-        )
-
-    # Fingerprints and challenges are voice-derived too. Withdrawing consent
-    # stops all voice processing, so they go with the embedding.
-    await session.execute(
-        delete(SampleFingerprint).where(SampleFingerprint.owner_id == owner_id)
-    )
-    await session.execute(
-        delete(VerificationChallenge).where(VerificationChallenge.owner_id == owner_id)
-    )

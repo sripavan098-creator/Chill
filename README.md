@@ -4,7 +4,26 @@ Chill is a personal AI assistant that recognizes its owner by voice.
 
 ## Current Milestone
 
-Chill v0.5 adds stronger voice authentication:
+Chill v0.6 turns the verified owner into an assistant, and v0.7 lets it act:
+
+- **Chat** (`/v1/assistant/chat`) and streaming chat over SSE, behind a
+  pluggable LLM provider. The default provider is a deterministic offline
+  placeholder; set `LLM_PROVIDER=openai` to reach any OpenAI-compatible
+  endpoint (OpenAI, Ollama, vLLM).
+- **Speech-to-text** (`/v1/assistant/transcribe`) for dictation. This is not
+  authentication and never replaces voice verification.
+- **Text-to-speech** (`/v1/assistant/speak`) returning WAV audio.
+- **Long-term personal memory**: store, list, search and delete facts. The top
+  matches are retrieved and placed in the system prompt as untrusted context.
+  Text embeddings are stored encrypted, never as plaintext.
+- **Action Engine** (v0.7): the assistant can propose tools from a registry
+  where each tool carries a risk level. Low-risk tools run immediately;
+  medium- and high-risk tools become approval cards and do not run until the
+  owner approves them. A high-risk tool additionally requires typing
+  `CONFIRM`, so voice recognition is never sufficient on its own. Every
+  transition is audited.
+
+Carried over from v0.5, stronger voice authentication:
 
 - Replay protection: a recording that has already been scored is refused, matched by a digest of the decoded audio (never the audio itself)
 - Device binding: the voice profile is tied to the device that enrolled it, so a stolen token alone cannot verify from another phone
@@ -44,6 +63,9 @@ delete-profile/account endpoints.
 - AsyncStorage (local, non-biometric state)
 - FastAPI + PostgreSQL (voice backend, v0.3+)
 - ECAPA-TDNN speaker verification (v0.4)
+- OpenAI-compatible LLM, STT and TTS providers (v0.6, pluggable)
+- Encrypted text embeddings for personal memory (v0.6)
+- Risk-gated Action Engine with approvals and audit (v0.7)
 
 ## Repository Layout
 
@@ -84,8 +106,8 @@ pytest
 
 ## Status
 
-v0.5 adds stronger voice authentication: replay protection, device binding and
-single-use liveness challenges, on top of v0.4's ECAPA-TDNN speaker
-verification. The fast test suite runs on the deterministic placeholder
-encoder; `pytest -m speaker` runs the real model. See `docs/TASKS.md` for the
-current checklist.
+v0.6 adds LLM chat, STT, TTS and long-term personal memory on top of the
+verified voice profile; v0.7 adds the risk-gated Action Engine with approval
+cards and an audit trail. The fast test suite runs entirely on deterministic
+placeholder providers; `pytest -m speaker` runs the real ECAPA model. See
+`docs/TASKS.md` for the current checklist.

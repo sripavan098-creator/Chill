@@ -56,6 +56,40 @@ You are building Chill, a personal AI assistant with owner voice recognition.
 - `standard-navigation` must stay in `transformIgnorePatterns` for expo-router's
   testing library to render.
 
+## Assistant Rules (v0.6)
+
+- The LLM, text-embedding and TTS providers are pluggable and selected in
+  `app/core/config.py`. The `placeholder` provider is deterministic and for the
+  test suite only; it must never run in production.
+- Retrieved memories are injected into the system prompt inside an explicit
+  untrusted-content boundary (`app/assistant/prompts.py`). A memory is data the
+  model may read, never an instruction it should follow.
+- Text embeddings are encrypted at rest with the same cipher as voice
+  embeddings. Never return an embedding to the client.
+- Speech-to-text (`/v1/assistant/transcribe`) is dictation, not authentication.
+  It must never authorise an action or replace voice verification.
+- Keep the memory search ranking identical across backends: cosine similarity
+  over decrypted vectors, with plaintext vectors never written to the DB or the
+  query log.
+
+## Action Engine Rules (v0.7)
+
+- The tool registry (`app/actions/tools.py`) is the whole surface. There is no
+  generic "run this code" tool. An unregistered tool is refused and audited.
+- Every tool declares a risk level. `low` runs immediately; `medium` and `high`
+  become pending approvals and run only on approval.
+- A `high` tool also requires the exact confirmation phrase (`CONFIRM`). Voice
+  recognition is never sufficient for a high-risk action.
+- All rules are enforced in `ActionEngine` (`app/actions/engine.py`), never by
+  the client and never by the model.
+- A model-proposed action is data, not a command. It goes through the same
+  risk rules; a high-risk proposal from chat still waits for approval.
+- Actions are owner-scoped. Never let one owner read, approve, deny or run
+  another owner's action.
+- Audit every transition with the tool name and risk level. Never put arguments
+  or result payloads in the audit detail.
+- A tool must never place a secret in its arguments or result.
+
 ## Security Rules
 
 - No secrets in code.
