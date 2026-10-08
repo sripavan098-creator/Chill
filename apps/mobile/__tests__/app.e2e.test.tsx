@@ -203,6 +203,22 @@ describe('Chill end-to-end journey', () => {
     expect(screen.getByText('Hi, Sri')).toBeTruthy();
   });
 
+  it('shows a spoken challenge phrase before recording a login sample', async () => {
+    audioMockState.recordingDurationMs = 3000;
+    await seedEnrolledOwner({ simulate: 'success' });
+
+    await renderApp('/login');
+    expect(screen.queryByText('Say this phrase')).toBeNull();
+
+    await press('Start voice verification');
+
+    // A fresh phrase is fetched and read before the sample is checked.
+    await waitFor(() => expect(screen.getByText('Say this phrase')).toBeTruthy(), {
+      timeout: 20000,
+    });
+    expect(screen.getByText(/Hey Chill, your code is /)).toBeTruthy();
+  });
+
   it('falls back to PIN when the mock voice match fails, then continues home', async () => {
     audioMockState.recordingDurationMs = 3000;
     await seedEnrolledOwner({ simulate: 'failure' });

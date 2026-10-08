@@ -17,6 +17,7 @@ from app.core.config import Settings, get_settings
 from app.core.crypto import EmbeddingCipher
 from app.core.embeddings import build_embedding_provider
 from app.core.errors import ChillError, chill_error_handler
+from app.core.transcription import build_transcriber
 from app.db.models import Base
 from app.db.session import create_engine, create_session_factory
 
@@ -32,6 +33,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.settings = settings
         app.state.cipher = EmbeddingCipher(settings.encryption_key)
         app.state.embeddings = build_embedding_provider(settings)
+        app.state.transcriber = build_transcriber(settings)
 
         # Alembic owns the schema in production. Creating tables here keeps
         # local development and tests one command shorter.

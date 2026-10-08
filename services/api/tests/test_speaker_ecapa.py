@@ -21,6 +21,7 @@ import pytest
 
 from app.core.audio import prepare
 from app.core.embeddings import EcapaEmbeddingProvider, cosine_similarity
+from app.core.transcription import attach_transcript
 
 pytestmark = pytest.mark.speaker
 
@@ -191,15 +192,20 @@ async def test_api_enrollment_and_verification_with_ecapa(ecapa_client) -> None:
             "/v1/verification/challenge", headers=headers
         )
         assert challenge.status_code == 200, challenge.text
-        return await ecapa_client.post(
-            "/v1/verification",
-            json={
-                "duration_ms": 2400,
-                "audio_base64": b64(audio),
-                "challenge_id": challenge.json()["challenge_id"],
-            },
-            headers=headers,
-        )
+        body = challenge.json()
+        # The default transcriber is the placeholder, so attach the challenge
+        # phrase as what it heard. These tests exercise the ECAPA identity
+        # check, not speech recognition.
+        with attach_transcript(body.get("phrase")):
+            return await ecapa_client.post(
+                "/v1/verification",
+                json={
+                    "duration_ms": 2400,
+                    "audio_base64": b64(audio),
+                    "challenge_id": body["challenge_id"],
+                },
+                headers=headers,
+            )
 
     # A fresh owner phrase, unseen during enrollment, still verifies.
     genuine = await submit(_synth(VOICE_A, "Hey Chill, it is really me."))

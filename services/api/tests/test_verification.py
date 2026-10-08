@@ -10,7 +10,7 @@ from tests.conftest import (
     enroll,
     grant_consent,
     register_device,
-    request_challenge,
+    request_challenge_body,
     sample_audio,
     silence_wav,
     synth_speech,
@@ -94,14 +94,24 @@ async def test_verification_requires_a_challenge(client: AsyncClient) -> None:
 
 async def test_verification_rejects_a_used_challenge(client: AsyncClient) -> None:
     token = await _enrolled_device(client)
-    challenge_id = await request_challenge(client, token)
+    challenge = await request_challenge_body(client, token)
 
-    first = await verify(client, token, audio=_matching_audio(), challenge_id=challenge_id)
+    first = await verify(
+        client,
+        token,
+        audio=_matching_audio(),
+        challenge_id=challenge["challenge_id"],
+        transcript=challenge["phrase"],
+    )
     assert first.status_code == 200, first.text
 
     # The same nonce cannot be presented twice.
     second = await verify(
-        client, token, audio=_different_voice_audio(), challenge_id=challenge_id
+        client,
+        token,
+        audio=_different_voice_audio(),
+        challenge_id=challenge["challenge_id"],
+        transcript=challenge["phrase"],
     )
     assert second.status_code == 422
     assert second.json()["error"]["code"] == "CHALLENGE_REQUIRED"

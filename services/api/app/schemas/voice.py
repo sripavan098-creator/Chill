@@ -68,6 +68,9 @@ class VerifyRequest(BaseModel):
 class ChallengeResponse(BaseModel):
     challenge_id: str
     nonce: str
+    # Phrase the speaker must say. Present when spoken challenges are enabled;
+    # the client shows it and records the speaker reading it.
+    phrase: str | None = None
     expires_at: datetime
 
 

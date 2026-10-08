@@ -18,9 +18,11 @@ from fastapi import APIRouter, Request
 from sqlalchemy import select
 
 from app.api.deps import DeviceDep, SessionDep
+from app.core import phrases
 from app.core.audio import AudioDecodeError, fingerprint, prepare
 from app.core.embeddings import cosine_similarity
 from app.core.errors import (
+    ChallengePhraseError,
     ChallengeRequiredError,
     DeviceNotBoundError,
     EnrollmentRequiredError,
@@ -84,10 +86,14 @@ async def create_challenge(
         owner_id=device.owner_id,
         device_id=device.id,
         ttl_seconds=settings.challenge_ttl_seconds,
+        phrase=phrases.generate_phrase() if settings.require_spoken_challenge else None,
     )
     await session.commit()
     return ChallengeResponse(
-        challenge_id=issued.id, nonce=issued.nonce, expires_at=issued.expires_at
+        challenge_id=issued.id,
+        nonce=issued.nonce,
+        phrase=issued.phrase,
+        expires_at=issued.expires_at,
     )
 
 
@@ -101,6 +107,7 @@ async def verify(
     settings = request.app.state.settings
     cipher = request.app.state.cipher
     provider = request.app.state.embeddings
+    transcriber = request.app.state.transcriber
 
     await limits.enforce_rate_limit(
         session,
@@ -167,13 +174,14 @@ async def verify(
             f"Hold the phrase for at least {settings.min_sample_ms}ms."
         )
 
+    challenge = None
     if settings.require_verification_challenge:
         if not payload.challenge_id:
             raise ChallengeRequiredError(
                 "A challenge is required. Request one from /verification/challenge."
             )
         # Single-use and time-boxed, so a stale recording cannot be replayed.
-        await challenges.consume(
+        challenge = await challenges.consume(
             session, owner_id=device.owner_id, challenge_id=payload.challenge_id
         )
 
@@ -231,6 +239,29 @@ async def verify(
         raise ReplayDetectedError(
             "This recording has already been used. Record a fresh phrase."
         )
+
+    # Spoken challenge: check what the speaker said before paying for the
+    # speaker embedding. A mis-heard or wrong phrase is a mismatch, not a
+    # failed identity check, so it does not count toward the lockout.
+    if settings.require_spoken_challenge and challenge is not None and challenge.phrase:
+        heard = await transcriber.transcribe(
+            decoded.samples, sample_rate=decoded.sample_rate
+        )
+        challenges.record_transcript(challenge, heard_text=heard)
+        if not phrases.matches(challenge.phrase, heard):
+            await audit.record_event(
+                session,
+                event="verification.rejected",
+                outcome="denied",
+                owner_id=device.owner_id,
+                device_id=device.id,
+                detail=f"challenge_phrase stt={transcriber.model_version}",
+            )
+            # Commit so the transcript and the single-use consumption are kept.
+            await session.commit()
+            raise ChallengePhraseError(
+                "That was not the challenge phrase. Say the phrase shown and try again."
+            )
 
     sample_embedding = await provider.embed(
         decoded.samples,

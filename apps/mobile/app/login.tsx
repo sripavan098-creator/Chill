@@ -23,6 +23,7 @@ export default function LoginScreen() {
     elapsedMs,
     result,
     error,
+    phrase,
     attemptLimitReached,
     simulateFailure,
     setSimulateFailure,
@@ -57,9 +58,20 @@ export default function LoginScreen() {
         <Body color={colors.textSecondary}>
           {busy
             ? 'Listening for your voice…'
-            : 'Tap the microphone and say: “Hey Chill, unlock my assistant.”'}
+            : 'Speak the challenge phrase to confirm it is you.'}
         </Body>
       </View>
+
+      {phrase ? (
+        <Card>
+          <Heading>Say this phrase</Heading>
+          <Body color={colors.primary}>{phrase}</Body>
+          <Caption>
+            Chill asks for a new phrase each time. It is checked with speech
+            recognition and helps reject a replayed recording.
+          </Caption>
+        </Card>
+      ) : null}
 
       <View style={styles.micArea}>
         <MicButton

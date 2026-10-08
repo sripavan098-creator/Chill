@@ -76,12 +76,14 @@
 - [x] Alembic migration for the new tables and column.
 - [x] Tests for replay, device binding, challenges and retention.
 - [x] End-to-end smoke tests for the mobile journey (welcome → consent → enrollment → login → fallback → home → settings), driving the real Expo Router app.
-- [ ] Real liveness detection (spoken-phrase challenge-response, audio deepfake checks).
+- [x] Spoken challenge-response: each challenge carries a random phrase, transcribed and matched before scoring.
+- [x] Pluggable speech-to-text (deterministic placeholder for tests; `whisper` for real use).
+- [ ] Audio deepfake checks.
 - [ ] Tune the threshold against real field recordings before beta.
 
 ## Milestone 6: Real Liveness (v0.6)
 
-- [ ] Spoken-phrase challenge-response, not just a read-back nonce.
+- [x] Spoken-phrase challenge-response, not just a read-back nonce.
 - [ ] Replay detection beyond exact-match (partial capture, re-recording).
 - [ ] Audio deepfake / synthetic-speech checks.
 - [ ] Device-binding management (re-bind, unbind, second device).

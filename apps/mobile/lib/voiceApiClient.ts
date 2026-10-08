@@ -134,6 +134,32 @@ export async function setRemoteConsent(granted: boolean): Promise<void> {
   });
 }
 
+export interface VoiceChallenge {
+  challengeId: string;
+  /** Phrase the server asks the speaker to say. Null when disabled. */
+  phrase: string | null;
+}
+
+/**
+ * Requests a single-use verification challenge.
+ *
+ * The caller shows `phrase` to the speaker before recording, then passes
+ * `challengeId` to `verifyRemoteVoice`. Fetching the phrase first is what makes
+ * the spoken check meaningful: the words were not known when any earlier
+ * recording was made.
+ */
+export async function requestVoiceChallenge(): Promise<VoiceChallenge> {
+  const token = await ensureDeviceSession('mobile');
+  const challenge = await request<{ challenge_id: string; phrase: string | null }>(
+    '/v1/verification/challenge',
+    { method: 'POST', token },
+  );
+  return {
+    challengeId: challenge.challenge_id,
+    phrase: challenge.phrase ?? null,
+  };
+}
+
 /**
  * Verifies a login sample against the stored owner embedding.
  *
@@ -143,15 +169,9 @@ export async function setRemoteConsent(granted: boolean): Promise<void> {
 export async function verifyRemoteVoice(
   audioBase64: string,
   durationMs: number,
+  challengeId: string,
 ): Promise<{ outcome: VerificationOutcome; reason: string; attemptsRemaining: number }> {
   const token = await ensureDeviceSession('mobile');
-
-  // The backend requires a single-use challenge with each attempt. Fetch one
-  // per call; it is bound to this owner and expires quickly.
-  const challenge = await request<{ challenge_id: string }>(
-    '/v1/verification/challenge',
-    { method: 'POST', token },
-  );
 
   const result = await request<{
     outcome: string;
@@ -164,7 +184,7 @@ export async function verifyRemoteVoice(
     body: JSON.stringify({
       duration_ms: durationMs,
       audio_base64: audioBase64,
-      challenge_id: challenge.challenge_id,
+      challenge_id: challengeId,
     }),
   });
 

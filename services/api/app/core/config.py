@@ -86,6 +86,25 @@ class Settings(BaseSettings):
     replay_window_seconds: int = 600
     # How often (at most) the same device may ask for a challenge.
     challenge_rate_limit: int = 30
+    # Ask the speaker to say a specific phrase, then check what they said with
+    # speech-to-text. This is a freshness check that a blind replay cannot
+    # satisfy: the phrase did not exist when any earlier recording was made. It
+    # is not liveness detection.
+    require_spoken_challenge: bool = True
+    # Speech-to-text provider. "placeholder" returns a transcript attached by a
+    # test; "whisper" runs a small faster-whisper model and needs the `speaker`
+    # extra (or faster-whisper) installed.
+    transcription_provider: str = "placeholder"
+
+    @field_validator("transcription_provider")
+    @classmethod
+    def _validate_transcriber(cls, value: str) -> str:
+        allowed = {"placeholder", "whisper"}
+        if value.lower() not in allowed:
+            raise ValueError(
+                f"CHILL_TRANSCRIPTION_PROVIDER must be one of {sorted(allowed)}"
+            )
+        return value.lower()
 
     consent_policy_version: str = "2026-10-01"
 

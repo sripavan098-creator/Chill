@@ -236,6 +236,11 @@ class VerificationChallenge(Base):
         ForeignKey("devices.id", ondelete="SET NULL")
     )
     nonce: Mapped[str] = mapped_column(String(64))
+    # Phrase the speaker is asked to say. Null when spoken challenges are off.
+    phrase: Mapped[str | None] = mapped_column(String(200))
+    # What speech-to-text heard, stored for audit. It is a text transcript the
+    # speaker chose to say, not biometric data and not raw audio.
+    heard_text: Mapped[str | None] = mapped_column(String(400))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

@@ -26,7 +26,7 @@ The following require more than voice recognition:
 
 - Do not store raw audio by default.
 - Store encrypted voice embeddings (AES-256-GCM, done in v0.3).
-- Add liveness checks before production (partial in v0.5, see below).
+- Add liveness checks before production (partial in v0.5: spoken challenge-response, see below).
 - Add replay attack protection (done in v0.5).
 - Add failed attempt limits (done in v0.3).
 - Add device binding (done in v0.5).
@@ -55,16 +55,39 @@ re-bind or unbind flow yet.
 
 ### Single-use challenges
 
-The client asks for a nonce, says it aloud, and returns the challenge id with
-the recording. A nonce is bound to the owner, expires after
-`CHILL_CHALLENGE_TTL_SECONDS` and is consumed on first use. A recording made
-before the nonce existed cannot satisfy it, so a captured sample is harder to
-reuse.
+The client asks for a challenge, is shown a phrase, says it aloud, and returns
+the challenge id with the recording. A challenge is bound to the owner, expires
+after `CHILL_CHALLENGE_TTL_SECONDS` and is consumed on first use. A recording
+made before the phrase existed cannot satisfy it, so a captured sample is
+harder to reuse.
 
-This is a freshness check, not liveness detection. A determined attacker can
-still read the nonce aloud over a replayed recording. Spoken-phrase
-challenge-response and audio deepfake checks are future work (Milestone 6) and
-must not be claimed until they are built.
+### Spoken challenge-response
+
+Each challenge carries a random three-word phrase
+(`Hey Chill, your code is alpha bravo charlie`). The speaker reads it, and the
+recording is transcribed with speech-to-text and compared against the stored
+phrase before the speaker embedding is computed. A recording that does not
+contain the phrase is refused with `CHALLENGE_PHRASE_MISMATCH` and does **not**
+count toward the lockout, so a bad microphone cannot lock an owner out.
+
+Matching is lenient by design: all the phrase's distinguishing words must be
+heard, in any order, with the wake words ignored. Strict equality would reject
+genuine attempts whenever the recogniser mis-hears an ordinary word, pushing
+owners to the PIN fallback.
+
+This is the freshness check described above, strengthened so a blind replay
+does not pass. It is still **not liveness detection**: a determined attacker
+can read the phrase aloud over a replayed recording, and a cloned voice can say
+it in the owner's voice. The transcript is stored for audit (the words the
+speaker chose to say, not biometric data). Set
+`CHILL_REQUIRE_SPOKEN_CHALLENGE=false` to disable it.
+
+Speech-to-text is pluggable. The default provider is a deterministic
+placeholder that returns an empty transcript; it exists for the test suite and
+must never run in production. Set `CHILL_TRANSCRIPTION_PROVIDER=whisper` to use
+a small faster-whisper model (install the `stt` extra). Audio deepfake
+detection and true liveness remain future work and must not be claimed until
+they are built.
 
 ## Backend Rules (v0.3)
 
@@ -85,7 +108,9 @@ must not be claimed until they are built.
 - Deleting the voice profile or the account requires an explicit confirmation
   token.
 - The audit log stores event names, outcomes and opaque identifiers only. It
-  never stores audio, embeddings or similarity scores.
+  never stores audio, embeddings or similarity scores. A spoken challenge
+  stores its phrase and the speech-to-text transcript, which are text the
+  speaker chose to say rather than biometric data.
 - Embeddings and audio are never returned to the client; responses carry
   scores and statuses only.
 - Serve the API over HTTPS. The service itself sets no cookies and keeps no

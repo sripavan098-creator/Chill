@@ -44,6 +44,7 @@ def _as_utc(value: datetime) -> datetime:
 class IssuedChallenge:
     id: str
     nonce: str
+    phrase: str | None
     expires_at: datetime
 
 
@@ -53,19 +54,35 @@ async def issue(
     owner_id: str,
     device_id: str | None,
     ttl_seconds: int,
+    phrase: str | None = None,
 ) -> IssuedChallenge:
     now = _now()
     challenge = VerificationChallenge(
         owner_id=owner_id,
         device_id=device_id,
         nonce=secrets.token_hex(16),
+        phrase=phrase,
         expires_at=now + timedelta(seconds=ttl_seconds),
     )
     session.add(challenge)
     await session.flush()
     return IssuedChallenge(
-        id=challenge.id, nonce=challenge.nonce, expires_at=challenge.expires_at
+        id=challenge.id,
+        nonce=challenge.nonce,
+        phrase=challenge.phrase,
+        expires_at=challenge.expires_at,
     )
+
+
+def record_transcript(challenge: VerificationChallenge, *, heard_text: str) -> None:
+    """Store what speech-to-text heard, so a rejected phrase is auditable.
+
+    Assigns on the ORM object only; the endpoint commits alongside the audit
+    entry, so the transcript and the attempt are persisted together. A rejected
+    phrase is still recorded, which is the point: an owner blocked by a
+    mis-transcription can be told what the server heard.
+    """
+    challenge.heard_text = heard_text[:400]
 
 
 async def consume(

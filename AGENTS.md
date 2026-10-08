@@ -63,3 +63,22 @@ You are building Chill, a personal AI assistant with owner voice recognition.
 - Add rate limiting later for voice attempts.
 - Prepare PIN fallback flow.
 - Prepare delete voice profile flow.
+
+## Spoken Challenge / Speech-to-Text Rules (v0.5)
+
+- Each verification challenge carries a random phrase (`app/core/phrases.py`).
+  The speaker reads it; the recording is transcribed and matched before the
+  speaker embedding is computed.
+- Matching is lenient: the phrase's distinguishing words must be heard, in any
+  order, with wake words ignored. Do not tighten it to exact equality.
+- A wrong or mis-heard phrase (`CHALLENGE_PHRASE_MISMATCH`, HTTP 422) must NOT
+  count toward the verification lockout.
+- Speech-to-text is behind `Transcriber` (`app/core/transcription.py`). The
+  default `placeholder` provider is for tests only and must never run in
+  production. `CHILL_TRANSCRIPTION_PROVIDER=whisper` selects the real model.
+- Backend tests attach a transcript with `attach_transcript(...)` from
+  `app.core.transcription` when exercising the verification endpoint, since the
+  placeholder cannot recognise the synthetic audio. Tests for the spoken check
+  itself pass a wrong transcript to force a mismatch.
+- Do not describe spoken challenge-response as liveness detection. It is a
+  freshness check, not deepfake or liveness analysis.

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from httpx import AsyncClient
 
+from app.core.transcription import attach_transcript
 from tests.conftest import (
     auth,
     b64,
@@ -11,7 +12,7 @@ from tests.conftest import (
     grant_consent,
     make_settings,
     register_device,
-    request_challenge,
+    request_challenge_body,
     synth_speech,
 )
 
@@ -34,16 +35,17 @@ async def test_verification_rate_limit_returns_429(client: AsyncClient, tmp_path
             assert (await enroll(http, token)).status_code == 200
 
             async def submit(seed: int):
-                challenge_id = await request_challenge(http, token)
-                return await http.post(
-                    "/v1/verification",
-                    json={
-                        "duration_ms": 2400,
-                        "audio_base64": b64(synth_speech(seed=seed)),
-                        "challenge_id": challenge_id,
-                    },
-                    headers=auth(token),
-                )
+                challenge = await request_challenge_body(http, token)
+                with attach_transcript(challenge.get("phrase")):
+                    return await http.post(
+                        "/v1/verification",
+                        json={
+                            "duration_ms": 2400,
+                            "audio_base64": b64(synth_speech(seed=seed)),
+                            "challenge_id": challenge["challenge_id"],
+                        },
+                        headers=auth(token),
+                    )
 
             assert (await submit(1)).status_code == 200
             assert (await submit(2)).status_code == 200
