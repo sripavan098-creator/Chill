@@ -17,15 +17,16 @@ import {
   saveEnrollmentMetadata,
 } from '@/features/voice-auth/enrollmentStore';
 import { USE_REMOTE_API } from '@/lib/config';
-import { mockVerify } from '@/lib/mockVoiceVerification';
+import { mockVerify, mockChallengePhrase } from '@/lib/mockVoiceVerification';
 import { STORAGE_KEYS, readJson, storage, writeJson } from '@/lib/storage';
 import {
   createRemoteEnrollment,
   deleteRemoteProfile,
+  requestVoiceChallenge,
   setRemoteConsent,
   verifyRemoteVoice,
 } from '@/lib/voiceApiClient';
-import type { RemoteEnrollmentSample } from '@/lib/voiceApiClient';
+import type { RemoteEnrollmentSample, VoiceChallenge } from '@/lib/voiceApiClient';
 import {
   ConsentRecord,
   EnrollmentClip,
@@ -167,16 +168,33 @@ export async function deleteVoiceProfile(): Promise<void> {
 }
 
 /**
+ * Requests a spoken challenge for the next verification attempt.
+ *
+ * Remote mode returns the server's phrase, which the speaker must say. Local
+ * mode returns a mock phrase so the UI flow is identical without a backend.
+ */
+export async function requestChallenge(): Promise<VoiceChallenge> {
+  if (USE_REMOTE_API) {
+    return requestVoiceChallenge();
+  }
+  return {
+    challengeId: createId('ch'),
+    phrase: mockChallengePhrase(),
+  };
+}
+
+/**
  * Voice verification.
  *
  * With a backend configured the recorded sample is verified against the stored
- * embedding. Otherwise the mock model runs, so the developer toggle can force
- * a pass or fail.
+ * embedding and the spoken challenge. Otherwise the mock model runs, so the
+ * developer toggle can force a pass or fail.
  */
 export async function verifyVoice(
   forcedOutcome: VerificationOutcome,
   attempt = 1,
   sample?: { audioBase64: string; durationMs: number } | null,
+  challengeId?: string,
 ): Promise<VerificationResult> {
   const metadata = await getEnrollmentMetadata();
   if (!metadata?.voiceEnrolled) {
@@ -184,7 +202,17 @@ export async function verifyVoice(
   }
 
   if (USE_REMOTE_API && sample) {
-    const remote = await verifyRemoteVoice(sample.audioBase64, sample.durationMs);
+    if (!challengeId) {
+      throw new ApiError(
+        'A verification challenge is required.',
+        'CHALLENGE_REQUIRED',
+      );
+    }
+    const remote = await verifyRemoteVoice(
+      sample.audioBase64,
+      sample.durationMs,
+      challengeId,
+    );
     return {
       outcome: remote.outcome,
       confidence: 0,

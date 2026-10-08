@@ -17,6 +17,7 @@ from app.core.config import Settings, get_settings
 from app.core.crypto import EmbeddingCipher
 from app.core.embeddings import build_embedding_provider
 from app.core.errors import ChillError, chill_error_handler
+from app.core.transcription import build_transcriber
 from app.db.models import Base
 from app.db.session import create_engine, create_session_factory
 
@@ -32,6 +33,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.settings = settings
         app.state.cipher = EmbeddingCipher(settings.encryption_key)
         app.state.embeddings = build_embedding_provider(settings)
+        app.state.transcriber = build_transcriber(settings)
 
         # Alembic owns the schema in production. Creating tables here keeps
         # local development and tests one command shorter.
@@ -46,7 +48,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(
         title="Chill Voice API",
-        version="0.3.0",
+        version="0.5.0",
         description=(
             "Enrollment and verification for the Chill personal assistant. "
             "Stores encrypted embeddings only; never raw audio."
@@ -64,7 +66,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/health", tags=["meta"])
     async def health() -> dict[str, str]:
-        return {"status": "ok", "version": "0.3.0"}
+        return {"status": "ok", "version": "0.5.0"}
 
     return app
 

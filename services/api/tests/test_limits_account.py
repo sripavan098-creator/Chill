@@ -4,7 +4,17 @@ from __future__ import annotations
 
 from httpx import AsyncClient
 
-from tests.conftest import auth, b64, enroll, grant_consent, make_settings, register_device
+from app.core.transcription import attach_transcript
+from tests.conftest import (
+    auth,
+    b64,
+    enroll,
+    grant_consent,
+    make_settings,
+    register_device,
+    request_challenge_body,
+    synth_speech,
+)
 
 
 async def test_verification_rate_limit_returns_429(client: AsyncClient, tmp_path, app) -> None:
@@ -24,17 +34,23 @@ async def test_verification_rate_limit_returns_429(client: AsyncClient, tmp_path
             await grant_consent(http, token)
             assert (await enroll(http, token)).status_code == 200
 
-            payload = {"duration_ms": 2200, "audio_base64": b64(b"voice")}
-            assert (
-                await http.post("/v1/verification", json=payload, headers=auth(token))
-            ).status_code == 200
-            assert (
-                await http.post("/v1/verification", json=payload, headers=auth(token))
-            ).status_code == 200
+            async def submit(seed: int):
+                challenge = await request_challenge_body(http, token)
+                with attach_transcript(challenge.get("phrase")):
+                    return await http.post(
+                        "/v1/verification",
+                        json={
+                            "duration_ms": 2400,
+                            "audio_base64": b64(synth_speech(seed=seed)),
+                            "challenge_id": challenge["challenge_id"],
+                        },
+                        headers=auth(token),
+                    )
 
-            blocked = await http.post(
-                "/v1/verification", json=payload, headers=auth(token)
-            )
+            assert (await submit(1)).status_code == 200
+            assert (await submit(2)).status_code == 200
+
+            blocked = await submit(3)
             assert blocked.status_code == 429
             assert blocked.json()["error"]["code"] == "RATE_LIMITED"
             assert blocked.headers.get("Retry-After") == "60"

@@ -61,8 +61,31 @@
 
 ## Milestone 4: Speaker Verification (v0.4)
 
-- [ ] Integrate ECAPA-TDNN or WeSpeaker.
-- [ ] Add voice activity detection.
-- [ ] Add liveness/replay checks.
-- [ ] Add confidence scoring.
-- [ ] Add fallback logic.
+- [x] Integrate ECAPA-TDNN (SpeechBrain `spkrec-ecapa-voxceleb`) behind `EmbeddingProvider`.
+- [x] Keep the deterministic placeholder provider for the fast default test suite.
+- [x] Add voice activity detection and sample quality gating before scoring.
+- [x] Add confidence scoring (calibrated bands, `model_version` in the response).
+- [x] Decode and embed in the request scope; raw audio is still never persisted.
+- [x] Opt-in `speaker` test suite exercising the real model, including end to end.
+- [ ] Tune the threshold against real field recordings before beta.
+
+## Milestone 5: Stronger Voice Auth (v0.5)
+
+- [x] Add replay protection (digest of decoded audio; a scored recording is refused).
+- [x] Add device binding (profile tied to the enrolling device; `CHILL_ENFORCE_DEVICE_BINDING`).
+- [x] Add single-use, time-boxed liveness challenges (`POST /v1/verification/challenge`).
+- [x] Tighten rate limits and lockout for production (verification and challenge limits).
+- [x] Alembic migration for the new tables and column.
+- [x] Tests for replay, device binding, challenges and retention.
+- [x] End-to-end smoke tests for the mobile journey (welcome → consent → enrollment → login → fallback → home → settings), driving the real Expo Router app.
+- [x] Spoken challenge-response: each challenge carries a random phrase, transcribed and matched before scoring.
+- [x] Pluggable speech-to-text (deterministic placeholder for tests; `whisper` for real use).
+- [ ] Audio deepfake checks.
+- [ ] Tune the threshold against real field recordings before beta.
+
+## Milestone 6: Real Liveness (v0.6)
+
+- [x] Spoken-phrase challenge-response, not just a read-back nonce.
+- [ ] Replay detection beyond exact-match (partial capture, re-recording).
+- [ ] Audio deepfake / synthetic-speech checks.
+- [ ] Device-binding management (re-bind, unbind, second device).

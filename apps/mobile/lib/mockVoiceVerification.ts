@@ -57,3 +57,23 @@ export async function mockVerify(
 export async function simulateListen(listenMs = 2000): Promise<void> {
   await delay(listenMs);
 }
+
+// Mirrors the server's `app.core.phrases` generator so local-only mode shows
+// the same kind of phrase without a backend.
+const CODE_WORDS = ['alpha', 'bravo', 'charlie', 'delta', 'echo', 'foxtrot', 'golf'];
+
+function pickThree(): string[] {
+  const pool = [...CODE_WORDS];
+  const chosen: string[] = [];
+  for (let i = 0; i < 3; i += 1) {
+    const index = Math.floor(Math.random() * pool.length);
+    chosen.push(pool.splice(index, 1)[0]);
+  }
+  return chosen;
+}
+
+/** Returns a spoken challenge phrase for the mock flow. */
+export function mockChallengePhrase(): string {
+  const [first, second, third] = pickThree();
+  return `Hey Chill, your code is ${first} ${second} ${third}`;
+}

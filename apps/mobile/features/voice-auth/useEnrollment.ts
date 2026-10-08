@@ -94,6 +94,11 @@ export function useEnrollment() {
       setActivePhraseId(phraseId);
       setClip(phraseId, { status: 'preparing' });
       await recorder.start();
+      // A failed start clears the active phrase via `handleOutcome`, so only
+      // promote to `recording` when this phrase is still the active take.
+      if (activePhraseRef.current === phraseId) {
+        setClip(phraseId, { status: 'recording' });
+      }
     },
     [preparePhrase, recorder, setClip],
   );
