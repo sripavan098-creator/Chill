@@ -4,17 +4,26 @@ Chill is a personal AI assistant that recognizes its owner by voice.
 
 ## Current Milestone
 
-Chill v0.3 adds the voice backend:
+Chill v0.5 adds stronger voice authentication:
 
-- FastAPI service with device-scoped authentication
-- Consent gating: enrollment is rejected without recorded consent
-- Enrollment endpoint that stores an encrypted embedding and discards audio
-- Verification endpoint with similarity scoring, rate limits and lockout
-- Append-only audit log (no biometric payloads)
-- Delete voice profile and delete account endpoints
-- Mobile client wired to the backend behind `EXPO_PUBLIC_CHILL_API_URL`
+- Replay protection: a recording that has already been scored is refused, matched by a digest of the decoded audio (never the audio itself)
+- Device binding: the voice profile is tied to the device that enrolled it, so a stolen token alone cannot verify from another phone
+- Single-use, time-boxed liveness challenges: the client asks for a nonce, says it aloud, and returns it with the recording, so a sample captured before the nonce existed cannot be reused
+- Tightened verification and challenge rate limits with the existing failed-attempt lockout
 
-The embedding model is a deterministic placeholder until milestone 4.
+These are real but partial. The challenge is a freshness check, not liveness
+detection: a determined attacker can still read the nonce over a replayed
+recording. Spoken-phrase challenge-response and audio deepfake detection are
+future work. Voice remains one layer, not the security boundary.
+
+Carried over from v0.4: ECAPA-TDNN (SpeechBrain `spkrec-ecapa-voxceleb`)
+behind the `EmbeddingProvider` interface, a deterministic placeholder provider
+for the fast test suite, voice activity detection and sample quality gating,
+and confidence bands.
+
+Carried over from v0.3: the FastAPI service with device-scoped authentication,
+consent gating, enrollment, verification, an append-only audit log, and
+delete-profile/account endpoints.
 
 ## Principles
 
@@ -33,8 +42,8 @@ The embedding model is a deterministic placeholder until milestone 4.
 - Expo Router
 - expo-audio (recording)
 - AsyncStorage (local, non-biometric state)
-- FastAPI + PostgreSQL (voice backend, v0.3)
-- Speaker verification later
+- FastAPI + PostgreSQL (voice backend, v0.3+)
+- ECAPA-TDNN speaker verification (v0.4)
 
 ## Repository Layout
 
@@ -62,7 +71,7 @@ Useful checks:
 ```bash
 npm run typecheck
 npm run lint
-npm test
+npm test          # unit, hook and end-to-end journey tests
 ```
 
 Backend:
@@ -75,6 +84,8 @@ pytest
 
 ## Status
 
-v0.3 adds the FastAPI voice backend and wires the mobile app to it behind a
-flag. Verification still uses a placeholder embedding model. See
-`docs/TASKS.md` for the current checklist.
+v0.5 adds stronger voice authentication: replay protection, device binding and
+single-use liveness challenges, on top of v0.4's ECAPA-TDNN speaker
+verification. The fast test suite runs on the deterministic placeholder
+encoder; `pytest -m speaker` runs the real model. See `docs/TASKS.md` for the
+current checklist.

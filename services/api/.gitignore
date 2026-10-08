@@ -12,3 +12,6 @@ htmlcov/
 *.egg-info/
 build/
 dist/
+
+# Downloaded speaker-encoder weights (large, not source)
+.models/

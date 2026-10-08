@@ -60,6 +60,18 @@ class EnrollmentResponse(BaseModel):
 class VerifyRequest(BaseModel):
     duration_ms: int = Field(ge=0)
     audio_base64: str = Field(min_length=1)
+    # Id of the challenge the speaker was asked to say. Required when the server
+    # enforces challenges (the default).
+    challenge_id: str | None = Field(default=None, max_length=36)
+
+
+class ChallengeResponse(BaseModel):
+    challenge_id: str
+    nonce: str
+    # Phrase the speaker must say. Present when spoken challenges are enabled;
+    # the client shows it and records the speaker reading it.
+    phrase: str | None = None
+    expires_at: datetime
 
 
 class VerificationResponse(BaseModel):
@@ -70,6 +82,7 @@ class VerificationResponse(BaseModel):
     reason: str
     attempts_remaining: int
     locked_out: bool
+    model_version: str
 
 
 class ProfileResponse(BaseModel):
@@ -79,6 +92,8 @@ class ProfileResponse(BaseModel):
     phrase_count: int
     embedding_dimensions: int | None
     model_version: str | None
+    # True when the voice profile is bound to the requesting device.
+    device_bound: bool
     consent_granted: bool
     consent_policy_version: str | None
     created_at: datetime

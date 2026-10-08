@@ -45,12 +45,80 @@ class Settings(BaseSettings):
     required_phrases: int = 5
     embedding_dimensions: int = 192
 
-    # Similarity threshold for a successful verification (placeholder model).
-    verification_threshold: float = 0.75
+    # Speaker encoder. "placeholder" is the deterministic stand-in used by the
+    # default test suite; "ecapa" is the real ECAPA-TDNN model.
+    embedding_provider: str = "placeholder"
+    # Directory the encoder caches its downloaded weights in.
+    model_cache_dir: str = "./.models"
+    # Torch device for the encoder.
+    model_device: str = "cpu"
+
+    # Verification thresholds. ECAPA cosine similarity is high for the same
+    # speaker and much lower across speakers. Measured on clean samples the
+    # same-speaker range is ~0.84-0.92 and different-speaker ~0.12-0.18, so
+    # 0.55 sits in the gap with margin. Re-tune against real field recordings
+    # before relying on it in production; voice remains one layer, not the
+    # boundary, for high-risk actions.
+    verification_threshold: float = 0.55
+    high_confidence_threshold: float = 0.75
+    medium_confidence_threshold: float = 0.65
+
+    # Sample quality gates, enforced after decoding and voice activity
+    # detection.
+    min_speech_ms: int = 1200
+    min_snr_db: float = 8.0
+    max_clipping_ratio: float = 0.05
+
+    # Stronger voice auth (v0.5).
+    #
+    # Bind the voice profile to the device that enrolled it. Verification from
+    # any other device is refused, so a stolen token alone cannot be used from
+    # an attacker's phone. Turn off to allow the same owner to verify from a
+    # second device.
+    enforce_device_binding: bool = True
+    # Require a single-use, time-boxed nonce with each verification. The client
+    # obtains one from /verification/challenge and returns the id it was shown.
+    # A recording captured before the nonce existed cannot satisfy it, which
+    # makes a captured sample harder to replay.
+    require_verification_challenge: bool = True
+    challenge_ttl_seconds: int = 120
+    # How long a used recording is remembered so it cannot be replayed.
+    replay_window_seconds: int = 600
+    # How often (at most) the same device may ask for a challenge.
+    challenge_rate_limit: int = 30
+    # Ask the speaker to say a specific phrase, then check what they said with
+    # speech-to-text. This is a freshness check that a blind replay cannot
+    # satisfy: the phrase did not exist when any earlier recording was made. It
+    # is not liveness detection.
+    require_spoken_challenge: bool = True
+    # Speech-to-text provider. "placeholder" returns a transcript attached by a
+    # test; "whisper" runs a small faster-whisper model and needs the `speaker`
+    # extra (or faster-whisper) installed.
+    transcription_provider: str = "placeholder"
+
+    @field_validator("transcription_provider")
+    @classmethod
+    def _validate_transcriber(cls, value: str) -> str:
+        allowed = {"placeholder", "whisper"}
+        if value.lower() not in allowed:
+            raise ValueError(
+                f"CHILL_TRANSCRIPTION_PROVIDER must be one of {sorted(allowed)}"
+            )
+        return value.lower()
 
     consent_policy_version: str = "2026-10-01"
 
     audit_log_retention_days: int = Field(default=90, ge=1)
+
+    @field_validator("embedding_provider")
+    @classmethod
+    def _validate_provider(cls, value: str) -> str:
+        allowed = {"placeholder", "ecapa"}
+        if value.lower() not in allowed:
+            raise ValueError(
+                f"CHILL_EMBEDDING_PROVIDER must be one of {sorted(allowed)}"
+            )
+        return value.lower()
 
     @field_validator("encryption_key")
     @classmethod

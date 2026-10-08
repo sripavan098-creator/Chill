@@ -13,7 +13,13 @@ from fastapi import APIRouter, Request
 from sqlalchemy import delete, select
 
 from app.api.deps import DeviceDep, SessionDep
-from app.db.models import ConsentRecord, Enrollment, EnrollmentSample
+from app.db.models import (
+    ConsentRecord,
+    Enrollment,
+    EnrollmentSample,
+    SampleFingerprint,
+    VerificationChallenge,
+)
 from app.schemas.voice import ConsentRequest, ConsentResponse
 from app.services import audit
 
@@ -95,9 +101,21 @@ async def _purge_enrollment(session: SessionDep, owner_id: str) -> None:
         select(Enrollment.id).where(Enrollment.owner_id == owner_id)
     )
     enrollment_ids = result.scalars().all()
-    if not enrollment_ids:
-        return
+    if enrollment_ids:
+        await session.execute(
+            delete(EnrollmentSample).where(
+                EnrollmentSample.enrollment_id.in_(enrollment_ids)
+            )
+        )
+        await session.execute(
+            delete(Enrollment).where(Enrollment.id.in_(enrollment_ids))
+        )
+
+    # Fingerprints and challenges are voice-derived too. Withdrawing consent
+    # stops all voice processing, so they go with the embedding.
     await session.execute(
-        delete(EnrollmentSample).where(EnrollmentSample.enrollment_id.in_(enrollment_ids))
+        delete(SampleFingerprint).where(SampleFingerprint.owner_id == owner_id)
     )
-    await session.execute(delete(Enrollment).where(Enrollment.id.in_(enrollment_ids)))
+    await session.execute(
+        delete(VerificationChallenge).where(VerificationChallenge.owner_id == owner_id)
+    )

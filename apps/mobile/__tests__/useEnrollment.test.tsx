@@ -65,6 +65,25 @@ describe('useEnrollment', () => {
     expect(clip).not.toHaveProperty('uri');
   });
 
+  it('exposes a recording state while a phrase is being captured', async () => {
+    const { result } = await renderHook(() => useEnrollment(), { wrapper });
+    const first = result.current.phrases[0];
+
+    await act(async () => {
+      await result.current.start(first.id);
+    });
+
+    // The screen relies on this to show the timer and a stop control.
+    expect(
+      result.current.clips.find((item) => item.phraseId === first.id)?.status,
+    ).toBe('recording');
+
+    await act(async () => {
+      await result.current.stop();
+    });
+    await waitFor(() => expect(result.current.completedCount).toBe(1));
+  });
+
   it('records a too-short take as an error and keeps it out of the count', async () => {
     audioMockState.recordingDurationMs = 400;
     const { result } = await renderHook(() => useEnrollment(), { wrapper });

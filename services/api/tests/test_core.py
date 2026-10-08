@@ -16,6 +16,18 @@ from app.core.tokens import generate_token, hash_token, tokens_equal
 from app.core.vectors import pack_vector, unpack_vector
 
 
+def _wave(seed: float, count: int = 4000):
+    """A small deterministic float32 signal standing in for decoded audio."""
+    import math
+
+    import numpy as np
+
+    return np.array(
+        [math.sin(2 * math.pi * (0.05 + seed * 0.01) * i) for i in range(count)],
+        dtype=np.float32,
+    )
+
+
 def test_cipher_round_trips() -> None:
     key = base64.b64encode(b"k" * 32).decode()
     cipher = EmbeddingCipher(key)
@@ -62,8 +74,8 @@ def test_token_hashing_is_keyed_and_stable() -> None:
 
 async def test_embedding_is_normalised_and_deterministic() -> None:
     provider = PlaceholderEmbeddingProvider(dimensions=32)
-    first = await provider.embed(b"sample-audio", duration_ms=2000)
-    second = await provider.embed(b"sample-audio", duration_ms=2000)
+    first = await provider.embed(_wave(1.0), sample_rate=16000, duration_ms=2000)
+    second = await provider.embed(_wave(1.0), sample_rate=16000, duration_ms=2000)
 
     assert len(first) == 32
     assert first == second
@@ -72,8 +84,8 @@ async def test_embedding_is_normalised_and_deterministic() -> None:
 
 async def test_identical_audio_scores_high_and_different_scores_low() -> None:
     provider = PlaceholderEmbeddingProvider(dimensions=64)
-    a = await provider.embed(b"speaker-a", duration_ms=2000)
-    b = await provider.embed(b"speaker-b", duration_ms=2000)
+    a = await provider.embed(_wave(1.0), sample_rate=16000, duration_ms=2000)
+    b = await provider.embed(_wave(2.0), sample_rate=16000, duration_ms=2000)
 
     assert cosine_similarity(a, a) > 0.99
     assert cosine_similarity(a, b) < 0.9
@@ -81,7 +93,10 @@ async def test_identical_audio_scores_high_and_different_scores_low() -> None:
 
 async def test_average_returns_unit_vector() -> None:
     provider = PlaceholderEmbeddingProvider(dimensions=16)
-    vectors = [await provider.embed(f"s{i}".encode(), duration_ms=2000) for i in range(3)]
+    vectors = [
+        await provider.embed(_wave(float(i + 1)), sample_rate=16000, duration_ms=2000)
+        for i in range(3)
+    ]
     centroid = await provider.average(vectors)
 
     assert len(centroid) == 16
@@ -95,7 +110,7 @@ def test_cosine_similarity_rejects_mismatched_lengths() -> None:
 
 async def test_embedding_provider_dimensions_match_settings() -> None:
     provider = PlaceholderEmbeddingProvider(dimensions=192)
-    vector = await provider.embed(b"x", duration_ms=2000)
+    vector = await provider.embed(_wave(3.0), sample_rate=16000, duration_ms=2000)
     assert len(vector) == 192
 
 

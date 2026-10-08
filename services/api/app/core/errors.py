@@ -51,9 +51,57 @@ class RateLimitedError(ChillError):
     code = "RATE_LIMITED"
 
 
+class SampleQualityError(ChillError):
+    """The submitted audio was unusable (too quiet, noisy, clipped, no speech).
+
+    Distinct from a failed verification: it is rejected before scoring and does
+    not count toward the lockout.
+    """
+
+    status_code = 422
+    code = "SAMPLE_QUALITY"
+
+
 class LockedOutError(ChillError):
     status_code = 429
     code = "LOCKED_OUT"
+
+
+class ReplayDetectedError(ChillError):
+    """The submitted recording has already been used.
+
+    Distinct from a failed verification: it is rejected before scoring and does
+    not count toward the lockout.
+    """
+
+    status_code = 422
+    code = "REPLAY_DETECTED"
+
+
+class DeviceNotBoundError(ChillError):
+    """The voice profile is bound to a different device."""
+
+    status_code = 403
+    code = "DEVICE_NOT_BOUND"
+
+
+class ChallengeRequiredError(ChillError):
+    """A valid, unexpired, unused challenge nonce is required."""
+
+    status_code = 422
+    code = "CHALLENGE_REQUIRED"
+
+
+class ChallengePhraseError(ChillError):
+    """The speaker did not say the challenge phrase.
+
+    Distinct from a failed verification: a mis-transcribed or wrong phrase is
+    reported before scoring and does not count toward the lockout, so a bad
+    microphone cannot lock an owner out of their own assistant.
+    """
+
+    status_code = 422
+    code = "CHALLENGE_PHRASE_MISMATCH"
 
 
 class NotFoundError(ChillError):

@@ -1,6 +1,6 @@
 [project]
 name = "chill-api"
-version = "0.3.0"
+version = "0.5.0"
 description = "Chill voice backend: enrollment, verification, consent and audit."
 requires-python = ">=3.11"
 dependencies = [
@@ -13,6 +13,7 @@ dependencies = [
   "pydantic-settings>=2.3",
   "python-multipart>=0.0.9",
   "cryptography>=42.0",
+  "numpy>=1.26",
 ]
 
 [project.optional-dependencies]
@@ -23,10 +24,31 @@ dev = [
   "ruff>=0.6",
   "alembic>=1.13",
 ]
+# Real speaker verification. The CPU wheels keep the install small enough for
+# CI; a GPU deployment swaps them for the matching CUDA builds.
+speaker = [
+  "torch==2.11.0",
+  "torchaudio==2.11.0",
+  "speechbrain>=1.0",
+  "scipy>=1.11",
+  "soundfile>=0.12",
+  "av>=19.0.1",
+]
+# Speech-to-text for spoken challenge-response. The default provider is the
+# deterministic placeholder, so this is only needed to run the real check.
+stt = [
+  "faster-whisper>=1.0",
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+# The speaker suite downloads/loads a real model, so it is opt-in:
+# `pytest -m speaker` (the CLI -m overrides this default).
+addopts = "-m 'not speaker'"
+markers = [
+  "speaker: exercises the real ECAPA model (slow, needs the `speaker` extra)",
+]
 
 [tool.ruff]
 line-length = 100

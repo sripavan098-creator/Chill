@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 
 import { RecorderOutcome, useVoiceRecorder } from '@/hooks/useVoiceRecorder';
-import { MAX_VERIFICATION_ATTEMPTS, verifyVoice } from '@/lib/api';
+import { MAX_VERIFICATION_ATTEMPTS, requestChallenge, verifyVoice } from '@/lib/api';
 import { useChill } from '@/state/ChillContext';
 import { VerificationResult } from '@/types';
 
@@ -17,10 +17,11 @@ const LOGIN_MAX_RECORDING_MS = 3000;
 /**
  * Voice verification flow.
  *
- * Records a real (temporary) login sample, then runs the mock verification
- * step. The recording is deleted before the result is reported. The developer
- * toggle in `settings.simulateOutcome` forces a pass or fail so both the
- * success and fallback paths stay testable without a real model.
+ * Each attempt is a spoken challenge: the app fetches a phrase first, shows it
+ * for the speaker to read, then records. The recording is deleted before the
+ * result is reported. The developer toggle in `settings.simulateOutcome`
+ * forces a pass or fail so both the success and fallback paths stay testable
+ * without a real model.
  */
 export function useVoiceVerification() {
   const { voiceProfile, settings, setSimulateOutcome } = useChill();
@@ -28,8 +29,10 @@ export function useVoiceVerification() {
   const [attempt, setAttempt] = useState(0);
   const [result, setResult] = useState<VerificationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [phrase, setPhrase] = useState<string | null>(null);
 
   const attemptRef = useRef(0);
+  const challengeRef = useRef<string | null>(null);
 
   const handleOutcome = useCallback(
     async (outcome: RecorderOutcome) => {
@@ -52,12 +55,15 @@ export function useVoiceVerification() {
           settings.simulateOutcome,
           nextAttempt,
           sample,
+          challengeRef.current ?? undefined,
         );
         attemptRef.current = nextAttempt;
         setAttempt(nextAttempt);
         setResult(verification);
         setError(null);
         setPhase('result');
+        // Each challenge is single-use; the next attempt asks for a new phrase.
+        challengeRef.current = null;
       } catch (err) {
         setError(
           err instanceof Error
@@ -84,6 +90,19 @@ export function useVoiceVerification() {
     if (busy) return;
     setError(null);
     setResult(null);
+    try {
+      const challenge = await requestChallenge();
+      challengeRef.current = challenge.challengeId;
+      setPhrase(challenge.phrase);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Could not prepare a verification challenge. Try again.',
+      );
+      setPhase('error');
+      return;
+    }
     setPhase('listening');
     await recorder.start();
     // The recorder flips to `error` internally on failure; mirror that here.
@@ -107,6 +126,7 @@ export function useVoiceVerification() {
     attempt,
     result,
     error: error ?? recorder.error,
+    phrase,
     attemptLimitReached,
     simulateFailure: settings.simulateOutcome === 'failure',
     setSimulateFailure,

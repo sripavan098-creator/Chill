@@ -4,6 +4,7 @@ import {
   deleteVoiceProfile,
   getVoiceProfile,
   recordConsent,
+  requestChallenge,
   verifyVoice,
 } from '@/lib/api';
 import { STORAGE_KEYS, storage } from '@/lib/storage';
@@ -73,6 +74,14 @@ describe('deleteVoiceProfile', () => {
     expect(await getVoiceProfile()).toBeNull();
     expect(await storage.getItem(STORAGE_KEYS.enrollment)).toBeNull();
     expect(await storage.getItem(STORAGE_KEYS.ownerName)).toBeNull();
+  });
+});
+
+describe('requestChallenge', () => {
+  it('returns a spoken phrase in local-only mode', async () => {
+    const challenge = await requestChallenge();
+    expect(challenge.challengeId).toMatch(/^ch_/);
+    expect(challenge.phrase).toMatch(/^Hey Chill, your code is /);
   });
 });
 

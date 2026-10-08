@@ -20,6 +20,7 @@ from sqlalchemy import delete, select
 
 from app.api.consent import latest_consent
 from app.api.deps import DeviceDep, SessionDep
+from app.core.audio import AudioDecodeError, fingerprint, prepare
 from app.core.crypto import EmbeddingCipher
 from app.core.errors import (
     ConsentRequiredError,
@@ -28,7 +29,13 @@ from app.core.errors import (
     ValidationError,
 )
 from app.core.vectors import pack_vector
-from app.db.models import Enrollment, EnrollmentSample, Owner
+from app.db.models import (
+    Enrollment,
+    EnrollmentSample,
+    Owner,
+    SampleFingerprint,
+    VerificationChallenge,
+)
 from app.schemas.voice import (
     DeleteProfileRequest,
     DeleteResponse,
@@ -41,6 +48,16 @@ from app.services import audit
 router = APIRouter(tags=["enrollment"])
 
 DELETE_CONFIRMATION = "DELETE"
+
+
+def _quality_score(quality) -> float:
+    """Fold the raw measurements into a single 0-1 score for storage.
+
+    Speech ratio dominates; a noisy sample is discounted. The individual
+    measurements stay in the request-scoped report and are not persisted.
+    """
+    snr_factor = min(max(quality.snr_db / 20.0, 0.0), 1.0)
+    return round(min(quality.speech_ratio, 1.0) * (0.5 + 0.5 * snr_factor), 4)
 
 
 def _decode_audio(audio_base64: str, phrase_id: str) -> bytes:
@@ -95,22 +112,56 @@ async def create_enrollment(
         if sample.duration_ms > settings.max_sample_ms:
             raise ValidationError(f"Sample '{sample.phrase_id}' is too long.")
 
-    # Embed each sample. The raw audio lives only in this loop.
+    # Decode, quality-gate and embed each sample. The decoded audio and the
+    # raw bytes live only inside this loop.
     embeddings: list[list[float]] = []
     sample_rows: list[tuple[str, int, float, bytes]] = []
+    seen_fingerprints: set[str] = set()
     for sample in payload.samples:
         audio = _decode_audio(sample.audio_base64, sample.phrase_id)
-        embedding = await provider.embed(audio, duration_ms=sample.duration_ms)
+        try:
+            decoded = prepare(audio)
+        except AudioDecodeError as exc:
+            raise ValidationError(
+                f"Sample '{sample.phrase_id}' is not decodable audio."
+            ) from exc
+        finally:
+            del audio
+
+        issues = decoded.quality.problems(
+            min_speech_ms=settings.min_speech_ms,
+            min_snr_db=settings.min_snr_db,
+            max_clipping=settings.max_clipping_ratio,
+        )
+        if issues:
+            raise ValidationError(
+                f"Sample '{sample.phrase_id}' was rejected ({', '.join(issues)}). "
+                "Record again in a quiet room and speak clearly."
+            )
+
+        # Distinct phrases must not reuse the same recording.
+        digest = fingerprint(decoded.samples, decoded.sample_rate)
+        if digest in seen_fingerprints:
+            raise ValidationError(
+                "Each phrase must be a separate recording. Record them one by one."
+            )
+        seen_fingerprints.add(digest)
+
+        embedding = await provider.embed(
+            decoded.samples,
+            sample_rate=decoded.sample_rate,
+            duration_ms=decoded.quality.duration_ms,
+        )
         embeddings.append(embedding)
         sample_rows.append(
             (
                 sample.phrase_id,
-                sample.duration_ms,
-                sample.quality,
+                decoded.quality.duration_ms,
+                _quality_score(decoded.quality),
                 cipher.encrypt(pack_vector(embedding)),
             )
         )
-        del audio
+        del decoded
 
     owner_embedding = await provider.average(embeddings)
     owner_blob = cipher.encrypt(pack_vector(owner_embedding))
@@ -129,15 +180,17 @@ async def create_enrollment(
         enrollment.phrase_count = len(embeddings)
         enrollment.embedding_dimensions = provider.dimensions
         enrollment.embedding_encrypted = owner_blob
-        enrollment.model_version = "placeholder-v0.3"
+        enrollment.model_version = provider.model_version
+        enrollment.bound_device_id = device.id
         enrollment.updated_at = datetime.now(UTC)
     else:
         enrollment = Enrollment(
             owner_id=device.owner_id,
+            bound_device_id=device.id,
             phrase_count=len(embeddings),
             embedding_dimensions=provider.dimensions,
             embedding_encrypted=owner_blob,
-            model_version="placeholder-v0.3",
+            model_version=provider.model_version,
         )
         session.add(enrollment)
         await session.flush()
@@ -163,7 +216,7 @@ async def create_enrollment(
         event="enrollment.created",
         owner_id=device.owner_id,
         device_id=device.id,
-        detail=f"phrases={len(embeddings)} model=placeholder-v0.3",
+        detail=f"phrases={len(embeddings)} model={provider.model_version}",
     )
     await session.commit()
 
@@ -199,6 +252,7 @@ async def get_profile(
         phrase_count=enrollment.phrase_count if enrollment else 0,
         embedding_dimensions=enrollment.embedding_dimensions if enrollment else None,
         model_version=enrollment.model_version if enrollment else None,
+        device_bound=bool(enrollment and enrollment.bound_device_id == device.id),
         consent_granted=bool(consent and consent.granted),
         consent_policy_version=consent.policy_version if consent else None,
         created_at=owner.created_at,
@@ -226,6 +280,17 @@ async def delete_profile(
             )
         )
         await session.execute(delete(Enrollment).where(Enrollment.id.in_(enrollment_ids)))
+
+    # Fingerprints and challenges are voice-derived; a deleted profile should
+    # not leave them behind.
+    await session.execute(
+        delete(SampleFingerprint).where(SampleFingerprint.owner_id == device.owner_id)
+    )
+    await session.execute(
+        delete(VerificationChallenge).where(
+            VerificationChallenge.owner_id == device.owner_id
+        )
+    )
 
     await audit.record_event(
         session,
