@@ -277,13 +277,65 @@ describe('Chill end-to-end journey', () => {
   it('keeps every route reachable without crashing (smoke)', async () => {
     await seedEnrolledOwner();
 
-    for (const route of ['/', '/welcome', '/permissions', '/consent', '/enroll']) {
+    for (const route of [
+      '/',
+      '/welcome',
+      '/permissions',
+      '/consent',
+      '/enroll',
+      '/feedback',
+      '/legal',
+    ]) {
       const { app } = await renderApp(route);
       expect(app.getPathname()).toBeTruthy();
       await cleanup();
     }
 
     const { app } = await renderApp('/home');
+    expect(app.getPathname()).toBe('/home');
     expect(screen.getByText(/Hi, Sri/)).toBeTruthy();
+  });
+
+  it('sends feedback and confirms it was recorded', async () => {
+    await seedEnrolledOwner();
+
+    await renderApp('/feedback');
+    expect(screen.getByText('Beta feedback')).toBeTruthy();
+
+    // The primary button stays disabled until a real note is written.
+    expect(
+      screen.getByLabelText('Send feedback').props.accessibilityState.disabled,
+    ).toBe(true);
+
+    await act(async () => {
+      fireEvent.changeText(
+        screen.getByLabelText('Your note'),
+        'The onboarding felt calm and clear.',
+      );
+    });
+
+    await press('Send feedback');
+    await waitFor(() => expect(screen.getByText('Thank you')).toBeTruthy());
+  });
+
+  it('deletes the whole account behind a confirmation', async () => {
+    await seedEnrolledOwner();
+
+    const { app } = await renderApp('/settings');
+    await press('Delete account');
+    await waitFor(() => expect(screen.getByText('Delete account?')).toBeTruthy());
+
+    await press('Delete account', 1);
+    await waitFor(() => expect(app.getPathname()).toBe('/welcome'), {
+      timeout: 10000,
+    });
+
+    const stored = await Promise.all([
+      storage.getItem(STORAGE_KEYS.enrollment),
+      storage.getItem(STORAGE_KEYS.consent),
+      storage.getItem(STORAGE_KEYS.ownerName),
+      storage.getItem(STORAGE_KEYS.onboardingComplete),
+    ]);
+    expect(stored.every((value) => value === null)).toBe(true);
   });
 });

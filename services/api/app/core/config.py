@@ -34,7 +34,7 @@ class Settings(BaseSettings):
 
     # Rate limits and lockout.
     enrollment_rate_limit: int = 10
-    verification_rate_limit: int = 10
+    verification_rate_limit: int = 5
     rate_limit_window_seconds: int = 60
     max_verification_attempts: int = 3
     lockout_seconds: int = 300
@@ -144,6 +144,26 @@ class Settings(BaseSettings):
     # Cap on memories loaded for a Python-side search on non-Postgres backends.
     memory_scan_limit: int = 500
 
+    # Beta hardening (v0.8).
+
+    # Largest accepted audio upload, before base64 expansion. A short enrollment
+    # phrase is well under a megabyte; 10 MB leaves room for a generous take
+    # without letting a caller buffer a huge body.
+    max_audio_bytes: int = 10 * 1024 * 1024
+    # Largest accepted request body overall. Enrollment sends five samples, so
+    # this is a little larger than a single audio upload.
+    request_body_max_bytes: int = 12 * 1024 * 1024
+    # Rate limits for the beta endpoints: per subject, per window.
+    action_approval_rate_limit: int = 10
+    stt_rate_limit: int = 10
+    # Feedback is capped per hour rather than per window.
+    feedback_hourly_limit: int = 5
+
+    # Client version policy (v0.8). The mobile app checks these on launch.
+    min_client_version: str = "0.2.0"
+    latest_client_version: str = "0.2.0"
+    client_update_url: str = "https://github.com/sripavan098-creator/Chill/releases"
+
     # Action Engine (v0.7).
     #
     # Low-risk actions run immediately. Medium- and high-risk actions are
@@ -218,6 +238,10 @@ def get_settings() -> Settings:
         if settings.token_signing_key == DEV_TOKEN_SIGNING_KEY:
             raise RuntimeError(
                 "CHILL_TOKEN_SIGNING_KEY must be set to a real secret in production."
+            )
+        if len(settings.token_signing_key) < 32:
+            raise RuntimeError(
+                "CHILL_TOKEN_SIGNING_KEY must be at least 32 characters in production."
             )
         needs_llm_key = settings.llm_provider == "openai" or any(
             provider == "openai"

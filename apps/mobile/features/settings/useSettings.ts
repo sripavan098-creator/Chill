@@ -1,18 +1,24 @@
 import { useCallback, useState } from 'react';
 
 import { useMicrophonePermission } from '@/hooks/useMicrophonePermission';
+import { APP_VERSION } from '@/lib/appVersion';
 import { useChill } from '@/state/ChillContext';
 
 /**
- * Settings actions. Deletion is gated behind an explicit confirmation in the
- * screen before `deleteProfile` runs.
+ * Settings actions.
+ *
+ * Both destructive paths are gated behind an explicit confirmation in the
+ * screen before they run. `eraseAccount` is the heavier of the two: it also
+ * clears the backend owner and the stored device token.
  */
 export function useSettings() {
   const {
     voiceProfile,
     consent,
     settings,
+    version,
     deleteVoiceProfile,
+    deleteAccount,
     revokeConsent,
     resetOnboarding,
     setSimulateOutcome,
@@ -22,19 +28,37 @@ export function useSettings() {
 
   const microphone = useMicrophonePermission();
 
-  const deleteProfile = useCallback(async () => {
+  const run = useCallback(async (action: () => Promise<void>, failure: string) => {
     setBusy(true);
     setError(null);
     try {
-      await deleteVoiceProfile();
+      await action();
       return true;
     } catch {
-      setError('We could not delete your voice profile. Please try again.');
+      setError(failure);
       return false;
     } finally {
       setBusy(false);
     }
-  }, [deleteVoiceProfile]);
+  }, []);
+
+  const deleteProfile = useCallback(
+    () =>
+      run(
+        () => deleteVoiceProfile(),
+        'We could not delete your voice profile. Please try again.',
+      ),
+    [deleteVoiceProfile, run],
+  );
+
+  const eraseAccount = useCallback(
+    () =>
+      run(
+        () => deleteAccount(),
+        'We could not delete your account. Please try again.',
+      ),
+    [deleteAccount, run],
+  );
 
   const reset = useCallback(async () => {
     setBusy(true);
@@ -56,6 +80,9 @@ export function useSettings() {
   return {
     voiceProfile,
     consent,
+    appVersion: APP_VERSION,
+    versionStatus: version?.status ?? 'unknown',
+    versionMessage: version?.message ?? '',
     microphoneStatus: microphone.status,
     microphoneGranted: microphone.granted,
     microphoneDenied: microphone.denied,
@@ -64,6 +91,7 @@ export function useSettings() {
     busy,
     error,
     deleteProfile,
+    eraseAccount,
     revokeConsent,
     reset,
     setSimulateFailure,

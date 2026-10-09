@@ -8,7 +8,7 @@
 
 import { API_BASE_URL, REQUEST_TIMEOUT_MS } from '@/lib/config';
 import { clearDeviceSession, getAccessToken, saveDeviceSession } from '@/lib/deviceSession';
-import { VerificationOutcome } from '@/types';
+import { BackendVersionPolicy, VerificationOutcome } from '@/types';
 
 export class BackendError extends Error {
   constructor(
@@ -64,6 +64,22 @@ async function request<T>(
       return undefined as T;
     }
     return (await response.json()) as T;
+  } catch (error) {
+    // Normalise network failures and timeouts into one retryable shape so
+    // callers do not have to special-case the platform's fetch errors.
+    if (error instanceof BackendError) throw error;
+    if ((error as { name?: string })?.name === 'AbortError') {
+      throw new BackendError(
+        'The voice service took too long to respond. Please try again.',
+        'NETWORK_ERROR',
+        0,
+      );
+    }
+    throw new BackendError(
+      'Chill could not reach the voice service. Check your connection and try again.',
+      'NETWORK_ERROR',
+      0,
+    );
   } finally {
     clearTimeout(timeout);
   }
@@ -217,4 +233,45 @@ export async function deleteRemoteAccount(): Promise<void> {
     });
   }
   await clearDeviceSession();
+}
+
+/** Fetches the backend client version policy. Public, so no device session. */
+export async function fetchVersionPolicy(): Promise<BackendVersionPolicy> {
+  const body = await request<{
+    api_version: string;
+    minimum_supported: string;
+    latest: string;
+    update_url: string;
+  }>('/v1/version');
+
+  return {
+    apiVersion: body.api_version,
+    minimumSupported: body.minimum_supported,
+    latest: body.latest,
+    updateUrl: body.update_url,
+  };
+}
+
+/**
+ * Files a feedback report. Deliberately carries no audio or embeddings: only
+ * the message plus coarse device context.
+ */
+export async function sendRemoteFeedback(report: {
+  kind: string;
+  message: string;
+  appVersion: string;
+  platform: string;
+}): Promise<{ id: string; kind: string }> {
+  const token = await ensureDeviceSession('mobile');
+  const result = await request<{ id: string; kind: string }>('/v1/feedback', {
+    method: 'POST',
+    token,
+    body: JSON.stringify({
+      kind: report.kind,
+      message: report.message,
+      app_version: report.appVersion,
+      platform: report.platform,
+    }),
+  });
+  return result;
 }

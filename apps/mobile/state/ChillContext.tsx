@@ -6,21 +6,27 @@ import React, {
   useMemo,
   useState,
 } from 'react';
+import { Platform } from 'react-native';
 
 import {
+  checkAppVersion,
   createVoiceProfile,
+  deleteAccount as deleteAccountApi,
   deleteVoiceProfile as deleteVoiceProfileApi,
   getConsent,
   getVoiceProfile,
   recordConsent,
+  sendFeedback as sendFeedbackApi,
   withdrawConsent,
 } from '@/lib/api';
+import { VersionVerdict } from '@/lib/appVersion';
 import { STORAGE_KEYS, readJson, storage, writeJson } from '@/lib/storage';
 import type { RemoteEnrollmentSample } from '@/lib/voiceApiClient';
 import {
   ChillSettings,
   ConsentRecord,
   EnrollmentClip,
+  FeedbackKind,
   VerificationOutcome,
   VoiceProfile,
 } from '@/types';
@@ -31,6 +37,7 @@ interface ChillState {
   voiceProfile: VoiceProfile | null;
   onboardingComplete: boolean;
   settings: ChillSettings;
+  version: VersionVerdict | null;
 }
 
 interface ChillContextValue extends ChillState {
@@ -42,6 +49,8 @@ interface ChillContextValue extends ChillState {
     samples?: RemoteEnrollmentSample[],
   ) => Promise<VoiceProfile>;
   deleteVoiceProfile: () => Promise<void>;
+  deleteAccount: () => Promise<void>;
+  submitFeedback: (kind: FeedbackKind, message: string) => Promise<void>;
   setSimulateOutcome: (outcome: VerificationOutcome) => Promise<void>;
   resetOnboarding: () => Promise<void>;
 }
@@ -57,6 +66,7 @@ export function ChillProvider({ children }: { children: React.ReactNode }) {
     voiceProfile: null,
     onboardingComplete: false,
     settings: DEFAULT_SETTINGS,
+    version: null,
   });
 
   useEffect(() => {
@@ -71,13 +81,18 @@ export function ChillProvider({ children }: { children: React.ReactNode }) {
       ]);
 
       if (!active) return;
-      setState({
+      setState((prev) => ({
+        ...prev,
         hydrated: true,
         consent,
         voiceProfile,
         onboardingComplete: Boolean(complete),
         settings: settings ?? DEFAULT_SETTINGS,
-      });
+      }));
+
+      // Version check is best-effort and never blocks hydration.
+      const version = await checkAppVersion();
+      if (active) setState((prev) => ({ ...prev, version }));
     })();
 
     return () => {
@@ -124,6 +139,25 @@ export function ChillProvider({ children }: { children: React.ReactNode }) {
     }));
   }, []);
 
+  const deleteAccount = useCallback(async () => {
+    await deleteAccountApi();
+    setState({
+      hydrated: true,
+      consent: null,
+      voiceProfile: null,
+      onboardingComplete: false,
+      settings: DEFAULT_SETTINGS,
+      version: state.version,
+    });
+  }, [state.version]);
+
+  const submitFeedback = useCallback(
+    async (kind: FeedbackKind, message: string) => {
+      await sendFeedbackApi(kind, message, Platform.OS);
+    },
+    [],
+  );
+
   const setSimulateOutcome = useCallback(async (outcome: VerificationOutcome) => {
     const settings: ChillSettings = { simulateOutcome: outcome };
     await writeJson(STORAGE_KEYS.settings, settings);
@@ -138,8 +172,9 @@ export function ChillProvider({ children }: { children: React.ReactNode }) {
       voiceProfile: null,
       onboardingComplete: false,
       settings: DEFAULT_SETTINGS,
+      version: state.version,
     });
-  }, []);
+  }, [state.version]);
 
   const value = useMemo<ChillContextValue>(
     () => ({
@@ -148,6 +183,8 @@ export function ChillProvider({ children }: { children: React.ReactNode }) {
       revokeConsent,
       completeEnrollment,
       deleteVoiceProfile,
+      deleteAccount,
+      submitFeedback,
       setSimulateOutcome,
       resetOnboarding,
     }),
@@ -157,6 +194,8 @@ export function ChillProvider({ children }: { children: React.ReactNode }) {
       revokeConsent,
       completeEnrollment,
       deleteVoiceProfile,
+      deleteAccount,
+      submitFeedback,
       setSimulateOutcome,
       resetOnboarding,
     ],

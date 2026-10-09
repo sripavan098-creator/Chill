@@ -26,6 +26,7 @@ from app.schemas.actions import (
     ActionToolListResponse,
     ActionToolOut,
 )
+from app.services import limits
 
 router = APIRouter(tags=["actions"])
 
@@ -121,6 +122,14 @@ async def approve_action(
     session: SessionDep,
     device: DeviceDep,
 ) -> ActionOut:
+    settings = request.app.state.settings
+    await limits.enforce_rate_limit(
+        session,
+        scope="action-approval",
+        subject=device.id,
+        limit=settings.action_approval_rate_limit,
+        window_seconds=settings.rate_limit_window_seconds,
+    )
     engine = request.app.state.actions
     action = await engine.approve_action(
         session,

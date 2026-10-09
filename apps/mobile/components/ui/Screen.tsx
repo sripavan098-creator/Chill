@@ -1,5 +1,5 @@
 import { PropsWithChildren } from 'react';
-import { ScrollView, StyleSheet, View, ViewStyle } from 'react-native';
+import { ScrollView, StyleSheet, useWindowDimensions, View, ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors, spacing } from '@/theme';
@@ -10,6 +10,8 @@ interface ScreenProps {
   /** Applies the default horizontal page padding. */
   padded?: boolean;
   contentStyle?: ViewStyle;
+  /** narrow: single column for forms (default). wide: laptop layouts. */
+  size?: 'narrow' | 'wide';
   testID?: string;
 }
 
@@ -18,11 +20,15 @@ export function Screen({
   scrollable = true,
   padded = true,
   contentStyle,
+  size = 'narrow',
   testID,
 }: PropsWithChildren<ScreenProps>) {
+  const { width } = useWindowDimensions();
   const content = [
     padded && styles.padded,
+    padded && width >= 900 && styles.paddedWide,
     styles.content,
+    { maxWidth: size === 'wide' ? 1080 : 560 },
     contentStyle,
   ];
 
@@ -55,11 +61,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
+    width: '100%',
+    alignSelf: 'center',
     gap: spacing.lg,
     paddingVertical: spacing.lg,
     flexGrow: 1,
   },
   padded: {
     paddingHorizontal: spacing.lg,
+  },
+  paddedWide: {
+    paddingHorizontal: spacing.xl,
   },
 });

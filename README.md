@@ -4,6 +4,17 @@ Chill is a personal AI assistant that recognizes its owner by voice.
 
 ## Current Milestone
 
+Chill v0.8 hardens the beta on both sides:
+
+- **Backend**: a client version policy (`GET /v1/version`) so a retired build
+  can prompt for an update, request correlation (`X-Request-ID`) with a
+  declared body-size limit and a generic error envelope that never leaks stack
+  traces, extra rate limits, and feedback intake (`POST /v1/feedback`).
+- **Mobile**: a top-level error boundary, a launch-time version check that
+  fails open offline (update-required blocks, update-recommended is advisory),
+  a feedback screen and a plain-language privacy summary, delete-account behind
+  a second confirmation, and recording calibration guidance during enrollment.
+
 Chill v0.6 turns the verified owner into an assistant, and v0.7 lets it act:
 
 - **Chat** (`/v1/assistant/chat`) and streaming chat over SSE, behind a

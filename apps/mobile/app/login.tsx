@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/Card';
 import { Screen } from '@/components/ui/Screen';
 import { Body, Caption, Heading, Title } from '@/components/ui/TextBlock';
 import { MicButton } from '@/components/voice/MicButton';
+import { OrbState, VoiceOrb } from '@/components/voice/VoiceOrb';
 import { RecordingTimer } from '@/components/voice/RecordingTimer';
 import { useVoiceVerification } from '@/features/voice-auth/useVoiceVerification';
 import { useMicrophonePermission } from '@/hooks/useMicrophonePermission';
@@ -45,6 +46,15 @@ export default function LoginScreen() {
     await verify();
   };
 
+  const orbState: OrbState =
+    phase === 'listening' || phase === 'verifying'
+      ? 'listening'
+      : phase === 'result'
+        ? succeeded
+          ? 'recognized'
+          : 'unknown'
+        : 'idle';
+
   const caption = busy
     ? phase === 'verifying'
       ? 'Checking your voice…'
@@ -74,6 +84,7 @@ export default function LoginScreen() {
       ) : null}
 
       <View style={styles.micArea}>
+        <VoiceOrb state={orbState} size={200} />
         <MicButton
           onPress={onPressMic}
           active={busy}

@@ -15,6 +15,9 @@ export default function SettingsScreen() {
   const {
     voiceProfile,
     consent,
+    appVersion,
+    versionStatus,
+    versionMessage,
     microphoneStatus,
     microphoneGranted,
     microphoneDenied,
@@ -23,12 +26,14 @@ export default function SettingsScreen() {
     busy,
     error,
     deleteProfile,
+    eraseAccount,
     revokeConsent,
     reset,
     setSimulateFailure,
   } = useSettings();
 
   const [confirmVisible, setConfirmVisible] = useState(false);
+  const [accountConfirmVisible, setAccountConfirmVisible] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   const onDelete = async () => {
@@ -37,6 +42,14 @@ export default function SettingsScreen() {
     if (!deleted) return;
     setConfirmVisible(false);
     setMessage('Voice profile deleted. Raw audio was never stored.');
+    router.replace('/welcome');
+  };
+
+  const onDeleteAccount = async () => {
+    setMessage(null);
+    const deleted = await eraseAccount();
+    if (!deleted) return;
+    setAccountConfirmVisible(false);
     router.replace('/welcome');
   };
 
@@ -155,6 +168,50 @@ export default function SettingsScreen() {
         />
       </Card>
 
+      <Card tone="danger">
+        <Heading>Delete account</Heading>
+        <Caption>
+          Removes everything: voice profile, consent, memories, and the device session. This
+          cannot be undone.
+        </Caption>
+        <Button
+          label="Delete account"
+          variant="danger"
+          onPress={() => setAccountConfirmVisible(true)}
+          accessibilityHint="Open a confirmation dialog before deleting your account"
+        />
+      </Card>
+
+      <Card>
+        <Heading>Help and legal</Heading>
+        <Caption>Send feedback about the beta, or read how Chill treats your voice.</Caption>
+        <Button
+          label="Send feedback"
+          variant="secondary"
+          onPress={() => router.push('/feedback')}
+          accessibilityHint="Open the feedback screen"
+        />
+        <Button
+          label="Privacy and terms"
+          variant="secondary"
+          onPress={() => router.push('/legal')}
+          accessibilityHint="Open the privacy summary and document links"
+        />
+      </Card>
+
+      <Card>
+        <View style={styles.cardHeader}>
+          <Heading>About</Heading>
+          <Badge
+            label={versionStatus === 'ok' ? 'Up to date' : 'Version'}
+            tone={versionStatus === 'ok' ? 'success' : 'info'}
+          />
+        </View>
+        <InfoRow label="App version" value={appVersion} />
+        <InfoRow label="Backend check" value={versionStatus} />
+        {versionMessage ? <Caption>{versionMessage}</Caption> : null}
+      </Card>
+
       <Card>
         <View style={styles.cardHeader}>
           <Heading>Developer options</Heading>
@@ -194,6 +251,17 @@ export default function SettingsScreen() {
         loading={busy}
         onConfirm={onDelete}
         onCancel={() => setConfirmVisible(false)}
+      />
+
+      <ConfirmModal
+        visible={accountConfirmVisible}
+        title="Delete account?"
+        message="This removes your voice profile, consent, memories, and device session. This cannot be undone."
+        confirmLabel="Delete account"
+        destructive
+        loading={busy}
+        onConfirm={onDeleteAccount}
+        onCancel={() => setAccountConfirmVisible(false)}
       />
     </Screen>
   );

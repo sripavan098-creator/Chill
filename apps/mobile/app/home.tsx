@@ -5,6 +5,8 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Screen } from '@/components/ui/Screen';
+import { TwoPane } from '@/components/ui/TwoPane';
+import { VoiceOrb } from '@/components/voice/VoiceOrb';
 import { Body, Caption, Heading, Title } from '@/components/ui/TextBlock';
 import { useChill } from '@/state/ChillContext';
 import { colors, spacing } from '@/theme';
@@ -19,7 +21,8 @@ export default function HomeScreen() {
   const { voiceProfile, consent } = useChill();
 
   return (
-    <Screen contentStyle={styles.content}>
+    <Screen size="wide" contentStyle={styles.content}>
+      <TwoPane visual={(wide) => <VoiceOrb state="idle" size={wide ? 420 : 200} />}>
       <View style={styles.header}>
         <View style={styles.greetingRow}>
           <Title>{`Hi, ${voiceProfile?.displayName ?? 'there'}`}</Title>
@@ -68,13 +71,14 @@ export default function HomeScreen() {
           accessibilityHint="Open settings and privacy controls"
         />
       </View>
+      </TwoPane>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   content: {
-    justifyContent: 'space-between',
+    justifyContent: 'center',
   },
   header: {
     gap: spacing.sm,

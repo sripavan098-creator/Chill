@@ -349,3 +349,28 @@ class ActionRequest(Base):
     __table_args__ = (
         Index("ix_action_owner_status", "owner_id", "status"),
     )
+
+
+class Feedback(Base):
+    """In-app feedback and crash reports from the beta.
+
+    Deliberately free-form and low-sensitivity: a category, the app version and
+    a message the user chose to write. No device identifiers, no location, no
+    biometric data, no conversation transcript. The owner id ties a report to a
+    profile so it can be deleted with the account, but the report is readable
+    without it.
+    """
+
+    __tablename__ = "feedback"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    owner_id: Mapped[str | None] = mapped_column(
+        ForeignKey("owners.id", ondelete="SET NULL"), index=True
+    )
+    device_id: Mapped[str | None] = mapped_column(String(36))
+    kind: Mapped[str] = mapped_column(String(16), default="general")
+    message: Mapped[str] = mapped_column(Text)
+    # Client-supplied context: app version and platform, for triage.
+    app_version: Mapped[str | None] = mapped_column(String(32))
+    platform: Mapped[str | None] = mapped_column(String(32))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

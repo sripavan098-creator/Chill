@@ -19,3 +19,14 @@ export const USE_REMOTE_API = API_BASE_URL.length > 0;
 
 /** Request timeout for backend calls, in milliseconds. */
 export const REQUEST_TIMEOUT_MS = 10000;
+
+/**
+ * Public links surfaced in the app. Kept here so a real privacy policy or
+ * support page can replace them without touching screens. The in-app legal
+ * screen summarises these principles; the links lead to the full documents.
+ */
+export const PRIVACY_URL =
+  'https://github.com/sripavan098-creator/Chill/blob/main/docs/PRIVACY.md';
+export const SECURITY_URL =
+  'https://github.com/sripavan098-creator/Chill/blob/main/docs/SECURITY.md';
+export const REPO_URL = 'https://github.com/sripavan098-creator/Chill';
