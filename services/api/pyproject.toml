@@ -16,6 +16,10 @@ dependencies = [
   "numpy>=1.26",
   "pgvector>=0.3",
   "httpx>=0.27",
+  # Audio decoding for every enrollment, verification and dictation request.
+  # The recorder uploads m4a/webm/wav, so PyAV is needed on a base install, not
+  # only alongside the real speaker model.
+  "av>=19.0.1",
 ]
 
 [project.optional-dependencies]
@@ -34,7 +38,6 @@ speaker = [
   "speechbrain>=1.0",
   "scipy>=1.11",
   "soundfile>=0.12",
-  "av>=19.0.1",
 ]
 # Speech-to-text for spoken challenge-response. The default provider is the
 # deterministic placeholder, so this is only needed to run the real check.
