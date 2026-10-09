@@ -9,6 +9,8 @@
 - [x] Add docs/SECURITY.md.
 - [x] Add docs/PRIVACY.md.
 - [x] Add design/DESIGN.md.
+- [x] Add GitHub Actions CI (backend lint/test, mobile typecheck/lint/test).
+- [x] Add a pull request template with privacy and security checks.
 
 ## Milestone 1: Chill Mobile Onboarding UI
 

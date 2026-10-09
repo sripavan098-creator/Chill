@@ -13,5 +13,5 @@ htmlcov/
 build/
 dist/
 
-# Downloaded speaker-encoder weights (large, not source)
+# Local SpeechBrain/ECAPA model cache (symlinks into the HF cache).
 .models/
