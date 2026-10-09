@@ -248,3 +248,104 @@ class VerificationChallenge(Base):
     __table_args__ = (
         Index("ix_verification_challenge_owner_nonce", "owner_id", "nonce"),
     )
+
+
+class ChatMessage(Base):
+    """One turn in the assistant conversation.
+
+    Only the text of the turn is stored. Audio is transcribed on the device or
+    in the request scope and never persisted, so a transcript here is text the
+    owner chose to say or type, not a recording.
+    """
+
+    __tablename__ = "chat_messages"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("owners.id", ondelete="CASCADE"), index=True
+    )
+    role: Mapped[str] = mapped_column(String(16))
+    content: Mapped[str] = mapped_column(Text)
+    model_version: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    __table_args__ = (
+        Index("ix_chat_message_owner_created", "owner_id", "created_at"),
+    )
+
+
+class Memory(Base):
+    """A long-term fact the owner asked Chill to remember.
+
+    The embedding is stored encrypted, like the voice embeddings, and is never
+    returned to a client. Retrieval compares a query embedding against these in
+    the request scope; the plaintext vector exists only there.
+
+    `embedding_dimensions` records the width so a provider change can be
+    detected rather than silently producing scores against a stale vector.
+    """
+
+    __tablename__ = "memories"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("owners.id", ondelete="CASCADE"), index=True
+    )
+    content: Mapped[str] = mapped_column(Text)
+    # AES-256-GCM blob: nonce || ciphertext, holding a packed float32 vector.
+    embedding_encrypted: Mapped[bytes] = mapped_column(LargeBinary)
+    embedding_dimensions: Mapped[int] = mapped_column(Integer)
+    model_version: Mapped[str] = mapped_column(String(64), default="placeholder-text-v1")
+    # Where the fact came from: "chat" when the owner asked to remember it,
+    # "manual" for a direct write. Never a biometric source.
+    source: Mapped[str] = mapped_column(String(32), default="manual")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, onupdate=_now
+    )
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        Index("ix_memory_owner_created", "owner_id", "created_at"),
+    )
+
+
+class ActionRequest(Base):
+    """A request to run a tool, and its outcome.
+
+    An action is created when the assistant proposes it or when the client asks
+    for it directly. Low-risk actions run in the same request; medium- and
+    high-risk actions are created `pending` and only run on approval.
+
+    `arguments` holds the tool input as JSON text. It is stored so an approval
+    card can show the owner exactly what will run, and so the audit trail can
+    record what was executed. It must never contain a secret.
+    """
+
+    __tablename__ = "action_requests"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("owners.id", ondelete="CASCADE"), index=True
+    )
+    device_id: Mapped[str | None] = mapped_column(String(36))
+    tool_name: Mapped[str] = mapped_column(String(64), index=True)
+    risk_level: Mapped[str] = mapped_column(String(16), index=True)
+    status: Mapped[str] = mapped_column(String(16), index=True, default="pending")
+    # Human-readable summary shown on the approval card.
+    summary: Mapped[str] = mapped_column(String(400))
+    arguments: Mapped[str] = mapped_column(Text, default="{}")
+    # What the tool returned, as JSON text. Never a secret; the registry is
+    # responsible for keeping sensitive values out of it.
+    result: Mapped[str | None] = mapped_column(Text)
+    error: Mapped[str | None] = mapped_column(String(400))
+    # Set when a high-risk action needed step-up confirmation.
+    confirmation: Mapped[str | None] = mapped_column(String(32))
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    executed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        Index("ix_action_owner_status", "owner_id", "status"),
+    )

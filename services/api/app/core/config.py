@@ -110,6 +110,77 @@ class Settings(BaseSettings):
 
     audit_log_retention_days: int = Field(default=90, ge=1)
 
+    # Assistant: LLM chat and long-term memory (v0.6).
+    #
+    # "placeholder" is the deterministic stand-in the default test suite uses;
+    # "openai" talks to any OpenAI-compatible endpoint, which covers OpenAI
+    # itself, a local Ollama (`LLM_API_BASE=http://host:11434/v1`) and vLLM.
+    llm_provider: str = "placeholder"
+    llm_api_base: str = "https://api.openai.com/v1"
+    llm_api_key: str = ""
+    llm_model: str = "gpt-4o-mini"
+    llm_timeout_seconds: float = 30.0
+    llm_max_tokens: int = 512
+
+    # Text embeddings for memory retrieval. `embedding_dimension` must match the
+    # model and the width of the `memories.embedding` column: 1536 for OpenAI's
+    # text-embedding-3-small, 768 for nomic-embed-text, 384 for MiniLM.
+    text_embedding_provider: str = "placeholder"
+    text_embedding_model: str = "text-embedding-3-small"
+    embedding_dimension: int = 1536
+
+    # Text-to-speech for spoken replies. "placeholder" synthesises a short
+    # deterministic tone for tests; "openai" calls any OpenAI-compatible
+    # `/audio/speech` endpoint. The assistant's voice carries no biometric data.
+    tts_provider: str = "placeholder"
+    tts_model: str = "tts-1"
+    tts_voice: str = "alloy"
+
+    # Chat behaviour.
+    chat_history_limit: int = 10
+    memory_top_k: int = 3
+    chat_rate_limit: int = 30
+    chat_message_max_chars: int = 4000
+    # Cap on memories loaded for a Python-side search on non-Postgres backends.
+    memory_scan_limit: int = 500
+
+    # Action Engine (v0.7).
+    #
+    # Low-risk actions run immediately. Medium- and high-risk actions are
+    # queued as pending approvals and only run when the owner approves them with
+    # an explicit confirmation. Voice recognition is never sufficient on its
+    # own for a high-risk action.
+    actions_enabled: bool = True
+    action_rate_limit: int = 30
+    # How long a pending approval stays open before it expires.
+    action_approval_ttl_seconds: int = 900
+    # Cap on outstanding pending approvals per owner, so a caller cannot queue
+    # unbounded work.
+    action_max_pending: int = 20
+    # Comma-separated action names a deployment allows. Empty means the
+    # built-in set. Narrowing this is how a deployment shrinks the surface.
+    action_allowlist: str = ""
+
+    @property
+    def allowed_action_names(self) -> set[str] | None:
+        names = {name.strip() for name in self.action_allowlist.split(",") if name.strip()}
+        return names or None
+
+    @field_validator("llm_provider", "text_embedding_provider", "tts_provider")
+    @classmethod
+    def _validate_assistant_provider(cls, value: str) -> str:
+        allowed = {"placeholder", "openai"}
+        if value.lower() not in allowed:
+            raise ValueError(f"assistant provider must be one of {sorted(allowed)}")
+        return value.lower()
+
+    @field_validator("embedding_dimension")
+    @classmethod
+    def _validate_embedding_dimension(cls, value: int) -> int:
+        if value < 1 or value > 8192:
+            raise ValueError("CHILL_EMBEDDING_DIMENSION must be between 1 and 8192")
+        return value
+
     @field_validator("embedding_provider")
     @classmethod
     def _validate_provider(cls, value: str) -> str:
@@ -147,5 +218,15 @@ def get_settings() -> Settings:
         if settings.token_signing_key == DEV_TOKEN_SIGNING_KEY:
             raise RuntimeError(
                 "CHILL_TOKEN_SIGNING_KEY must be set to a real secret in production."
+            )
+        needs_llm_key = settings.llm_provider == "openai" or any(
+            provider == "openai"
+            for provider in (settings.text_embedding_provider, settings.tts_provider)
+        )
+        if needs_llm_key and not settings.llm_api_key:
+            raise RuntimeError(
+                "CHILL_LLM_API_KEY must be set when an OpenAI-compatible "
+                "provider (llm, text embedding or tts) is selected. For a "
+                "local model set it to any placeholder value."
             )
     return settings

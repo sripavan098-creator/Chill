@@ -89,6 +89,50 @@ a small faster-whisper model (install the `stt` extra). Audio deepfake
 detection and true liveness remain future work and must not be claimed until
 they are built.
 
+## Assistant and Memory (v0.6)
+
+- The LLM provider is pluggable. The default is a deterministic offline
+  placeholder for the test suite and must never run in production; production
+  requires an OpenAI-compatible endpoint and refuses to start without a key.
+- Retrieved memories are injected into the system prompt inside an explicit
+  untrusted-content boundary. A memory is data the model may read, never an
+  instruction it should follow, so a stored note cannot hijack the assistant.
+- Text embeddings are stored encrypted (AES-256-GCM), like voice embeddings.
+  Embeddings are never returned to the client.
+- Speech-to-text (`/v1/assistant/transcribe`) is dictation, not
+  authentication. It never authorises anything and never replaces voice
+  verification.
+- Chat text is stored so the conversation can continue. It is deleted with the
+  account.
+
+## Action Engine (v0.7)
+
+The Action Engine is the only path from the assistant to a side effect. Its
+rules are enforced server-side, not by the client or the model:
+
+- A tool must be registered. There is no generic "run this code" tool, so the
+  registry is the whole surface. An unknown tool is refused and audited.
+- Every tool declares a risk level. `low` runs immediately; `medium` and
+  `high` are queued as pending approvals and do not run until the owner
+  approves them.
+- A `high` tool additionally requires typing the exact confirmation phrase
+  (`CONFIRM`). Approval alone is not enough, and voice recognition is never
+  sufficient for a high-risk action.
+- A tool's arguments are validated against its declared parameters before the
+  action is created; unknown arguments are refused.
+- Actions are owner-scoped. One owner cannot see, approve, deny or run
+  another owner's action.
+- Approvals expire after a configurable TTL and the number of pending
+  approvals per owner is capped.
+- A model-proposed action is data, not a command: it goes through the same
+  risk rules, and a high-risk proposal from chat still waits for approval.
+  Action proposals are honoured on the non-streaming chat endpoint only.
+- Every transition (requested, approved, denied, executed, failed, rejected)
+  is written to the append-only audit log with the tool name and risk level,
+  never the arguments or result payloads.
+- Action arguments and results are stored for the approval card and the audit
+  trail. A tool must never place a secret in either.
+
 ## Backend Rules (v0.3)
 
 - Audio is embedded in memory and discarded; it is never written to disk.

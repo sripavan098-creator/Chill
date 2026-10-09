@@ -94,6 +94,20 @@ locally with Piper when a voice model is available, and skips otherwise.
 | POST | `/v1/verification/challenge` | Issue a single-use, time-boxed nonce |
 | POST | `/v1/verification` | Verify a sample against the stored embedding |
 | DELETE | `/v1/account` | Delete the owner and all voice data (`confirm: "DELETE"`) |
+| POST | `/v1/assistant/chat` | Chat with the assistant (may propose an action) |
+| POST | `/v1/assistant/chat/stream` | Same, streamed over SSE |
+| GET | `/v1/assistant/history` | Recent conversation |
+| POST/GET | `/v1/assistant/memories` | Store or list long-term memories |
+| POST | `/v1/assistant/memories/search` | Rank memories by similarity |
+| DELETE | `/v1/assistant/memories/{id}` | Delete one memory |
+| POST | `/v1/assistant/transcribe` | Speech-to-text (dictation, not auth) |
+| POST | `/v1/assistant/speak` | Text-to-speech reply (WAV) |
+| GET | `/v1/actions/tools` | The action registry and risk levels |
+| POST | `/v1/actions` | Request a tool (low-risk runs now) |
+| GET | `/v1/actions` | List actions, optionally by status |
+| GET | `/v1/actions/{id}` | Read one action |
+| POST | `/v1/actions/{id}/approve` | Approve a pending action (`confirm` for high risk) |
+| POST | `/v1/actions/{id}/deny` | Deny a pending action |
 | GET | `/health` | Liveness check |
 
 ## Privacy and security notes
@@ -108,6 +122,11 @@ locally with Piper when a voice model is available, and skips otherwise.
 - The voice profile is bound to the enrolling device by default, and
   verification requires a single-use, time-boxed challenge.
 - Deleting the profile or account requires an explicit confirmation token.
+- Chat text and memories are owner-scoped and deleted with the account; memory
+  embeddings are encrypted at rest and never returned.
+- Actions are owner-scoped. A low-risk action runs immediately; medium- and
+  high-risk actions wait for approval, and a high-risk action also needs the
+  confirmation phrase. Every transition is audited.
 - The audit log records event names and outcomes, never biometric payloads.
 - `CHILL_ENV=production` refuses to start with the development encryption key.
 

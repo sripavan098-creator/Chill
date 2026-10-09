@@ -24,6 +24,21 @@ Users should be able to:
 - Export account data later.
 - Delete account.
 
+## Assistant, Memory and Actions (v0.6–v0.7)
+
+- Chat text is stored so the conversation can continue, and is deleted with the
+  account. Speech-to-text audio is decoded in memory and discarded; only the
+  transcript is kept.
+- Long-term memory stores the facts the owner chooses to keep, plus an
+  encrypted embedding of each. Memories can be listed, searched and deleted
+  individually, and are deleted with the account. No embedding is ever returned
+  to the client.
+- The assistant's spoken replies (text-to-speech) are generated audio, not the
+  owner's voice, and carry no biometric data.
+- Actions record the tool name, risk level, the arguments the owner approved
+  and the result, so the approval card and the audit trail can be shown. The
+  owner can review and deny any action that is waiting for approval.
+
 ## Retention
 
 - Keep voice embeddings only while the account is active.
