@@ -18,8 +18,9 @@ dependencies = [
   "httpx>=0.27",
   # Audio decoding for every enrollment, verification and dictation request.
   # The recorder uploads m4a/webm/wav, so PyAV is needed on a base install, not
-  # only alongside the real speaker model.
-  "av>=19.0.1",
+  # only alongside the real speaker model. The low floor keeps the 3.11 CI
+  # runner working (older wheels); newer interpreters pick a newer wheel.
+  "av>=14.4.0",
 ]
 
 [project.optional-dependencies]
