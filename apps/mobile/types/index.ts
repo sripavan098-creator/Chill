@@ -93,3 +93,20 @@ export interface ChillSettings {
   /** Developer-only toggle used to force a mock verification outcome. */
   simulateOutcome: VerificationOutcome;
 }
+
+export type FeedbackKind = 'general' | 'bug' | 'idea' | 'privacy';
+
+export interface FeedbackReport {
+  kind: FeedbackKind;
+  message: string;
+  appVersion: string;
+  platform: string;
+}
+
+/** Backend client version policy, mirrored from `GET /v1/version`. */
+export interface BackendVersionPolicy {
+  apiVersion: string;
+  minimumSupported: string;
+  latest: string;
+  updateUrl: string;
+}

@@ -109,6 +109,30 @@
 - [x] Account deletion removes the owner's actions.
 - [x] Action Engine test suite (gating, approvals, confirmation, isolation, chat bridge).
 
+## Milestone 8: Beta Hardening (v0.8)
+
+### Backend
+
+- [x] Client version policy endpoint (`GET /v1/version`), independent of the API version.
+- [x] Configurable minimum / latest client version and update URL.
+- [x] Request middleware: `X-Request-ID` correlation, declared body-size limit (413), and a generic error envelope that never leaks stack traces.
+- [x] Rate limits for action approvals, speech-to-text and feedback.
+- [x] Feedback intake (`POST /v1/feedback`, `GET /v1/feedback`) with a kind (general / bug / idea / privacy) and an hourly per-owner cap.
+- [x] Shared account-deletion service reused by the account and profile endpoints.
+- [x] Alembic migration for feedback reports; account deletion removes them.
+- [x] Hardening test suite (payload size, error envelope, rate limits, feedback, account deletion).
+
+### Mobile
+
+- [x] Top-level error boundary with a calm fallback and retry.
+- [x] Client version check on launch: update-required blocks, update-recommended is advisory, and the check fails open offline.
+- [x] Feedback screen (kind + note, no audio attached) and a plain-language privacy/terms screen with document links.
+- [x] Delete account flow behind a second confirmation, clearing profile, consent, memories and the device session.
+- [x] Recording calibration guidance (too short / weak / good / strong) on enrollment samples.
+- [x] Retry helper and normalized network errors for transient backend failures.
+- [x] Backend account-deletion, feedback and version clients behind the existing API facade.
+- [x] Tests for the new helpers and screens; the voice orb no longer starves the test renderer.
+
 ## Deferred: Deeper Liveness
 
 - [ ] Replay detection beyond exact-match (partial capture, re-recording).

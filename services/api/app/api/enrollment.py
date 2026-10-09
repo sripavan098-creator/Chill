@@ -11,8 +11,6 @@ step-up confirmation (`confirm: "DELETE"`).
 
 from __future__ import annotations
 
-import base64
-import binascii
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Request
@@ -28,6 +26,7 @@ from app.core.errors import (
     NotFoundError,
     ValidationError,
 )
+from app.core.uploads import decode_audio_upload
 from app.core.vectors import pack_vector
 from app.db.models import (
     Enrollment,
@@ -59,14 +58,10 @@ def _quality_score(quality) -> float:
     return round(min(quality.speech_ratio, 1.0) * (0.5 + 0.5 * snr_factor), 4)
 
 
-def _decode_audio(audio_base64: str, phrase_id: str) -> bytes:
-    try:
-        audio = base64.b64decode(audio_base64, validate=True)
-    except (binascii.Error, ValueError) as exc:
-        raise ValidationError(f"Sample '{phrase_id}' is not valid base64 audio.") from exc
-    if not audio:
-        raise ValidationError(f"Sample '{phrase_id}' is empty.")
-    return audio
+def _decode_audio(audio_base64: str, phrase_id: str, *, max_bytes: int) -> bytes:
+    return decode_audio_upload(
+        audio_base64, max_bytes=max_bytes, label=f"sample '{phrase_id}'"
+    )
 
 
 @router.post("/enrollment", response_model=EnrollmentResponse)
@@ -117,7 +112,9 @@ async def create_enrollment(
     sample_rows: list[tuple[str, int, float, bytes]] = []
     seen_fingerprints: set[str] = set()
     for sample in payload.samples:
-        audio = _decode_audio(sample.audio_base64, sample.phrase_id)
+        audio = _decode_audio(
+            sample.audio_base64, sample.phrase_id, max_bytes=settings.max_audio_bytes
+        )
         try:
             decoded = prepare(audio)
         except AudioDecodeError as exc:

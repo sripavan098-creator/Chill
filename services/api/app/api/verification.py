@@ -11,9 +11,6 @@ convenience layer. High-risk actions still require the PIN/OS fallback.
 
 from __future__ import annotations
 
-import base64
-import binascii
-
 from fastapi import APIRouter, Request
 from sqlalchemy import select
 
@@ -31,6 +28,7 @@ from app.core.errors import (
     SampleQualityError,
     ValidationError,
 )
+from app.core.uploads import decode_audio_upload
 from app.core.vectors import unpack_vector
 from app.db.models import Enrollment
 from app.schemas.voice import (
@@ -185,12 +183,9 @@ async def verify(
             session, owner_id=device.owner_id, challenge_id=payload.challenge_id
         )
 
-    try:
-        audio = base64.b64decode(payload.audio_base64, validate=True)
-    except (binascii.Error, ValueError) as exc:
-        raise ValidationError("The sample is not valid base64 audio.") from exc
-    if not audio:
-        raise ValidationError("The sample is empty.")
+    audio = decode_audio_upload(
+        payload.audio_base64, max_bytes=settings.max_audio_bytes
+    )
 
     try:
         decoded = prepare(audio)

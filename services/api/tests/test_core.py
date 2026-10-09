@@ -149,8 +149,22 @@ def test_production_accepts_real_secrets(monkeypatch) -> None:
     config.get_settings.cache_clear()
     monkeypatch.setenv("CHILL_ENV", "production")
     monkeypatch.setenv("CHILL_ENCRYPTION_KEY", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")
-    monkeypatch.setenv("CHILL_TOKEN_SIGNING_KEY", "a-real-signing-secret")
+    monkeypatch.setenv("CHILL_TOKEN_SIGNING_KEY", "a-real-signing-secret-that-is-32-chars")
     try:
         assert config.get_settings().is_production
+    finally:
+        config.get_settings.cache_clear()
+
+
+def test_production_rejects_short_signing_key(monkeypatch) -> None:
+    from app.core import config
+
+    config.get_settings.cache_clear()
+    monkeypatch.setenv("CHILL_ENV", "production")
+    monkeypatch.setenv("CHILL_ENCRYPTION_KEY", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")
+    monkeypatch.setenv("CHILL_TOKEN_SIGNING_KEY", "too-short")
+    try:
+        with pytest.raises(RuntimeError, match="at least 32"):
+            config.get_settings()
     finally:
         config.get_settings.cache_clear()

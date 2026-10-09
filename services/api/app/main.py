@@ -7,6 +7,7 @@ build an isolated instance with their own database.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -20,6 +21,8 @@ from app.api import (
     consent,
     devices,
     enrollment,
+    feedback,
+    meta,
     verification,
 )
 from app.core.config import Settings, get_settings
@@ -27,15 +30,21 @@ from app.core.crypto import EmbeddingCipher
 from app.core.embeddings import build_embedding_provider
 from app.core.errors import ChillError, chill_error_handler
 from app.core.llm import build_llm_provider
+from app.core.logging import configure_logging, get_request_id
+from app.core.middleware import RequestContextMiddleware
 from app.core.speech import build_tts_provider
 from app.core.text_embeddings import build_text_embedding_provider
 from app.core.transcription import build_transcriber
+from app.core.version import API_VERSION
 from app.db.models import Base
 from app.db.session import create_engine, create_session_factory
+
+logger = logging.getLogger("chill.startup")
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
+    configure_logging()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -61,6 +70,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             async with engine.begin() as connection:
                 await connection.run_sync(Base.metadata.create_all)
 
+        logger.info(
+            "Chill API started env=%s version=%s",
+            settings.env,
+            API_VERSION,
+        )
+
         try:
             yield
         finally:
@@ -68,7 +83,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(
         title="Chill Voice API",
-        version="0.7.0",
+        version=API_VERSION,
         description=(
             "Enrollment and verification for the Chill personal assistant. "
             "Stores encrypted embeddings only; never raw audio."
@@ -77,6 +92,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
 
     app.add_exception_handler(ChillError, chill_error_handler)
+    app.add_middleware(
+        RequestContextMiddleware, max_body_bytes=settings.request_body_max_bytes
+    )
 
     app.include_router(devices.router, prefix="/v1")
     app.include_router(consent.router, prefix="/v1")
@@ -85,10 +103,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(account.router, prefix="/v1")
     app.include_router(assistant.router, prefix="/v1")
     app.include_router(actions.router, prefix="/v1")
+    app.include_router(feedback.router, prefix="/v1")
+    app.include_router(meta.router, prefix="/v1")
 
+    # Unauthenticated liveness probe. Kept at the root so infrastructure
+    # does not have to know the API version.
     @app.get("/health", tags=["meta"])
     async def health() -> dict[str, str]:
-        return {"status": "ok", "version": "0.7.0"}
+        return {
+            "status": "ok",
+            "version": API_VERSION,
+            "request_id": get_request_id() or "-",
+        }
 
     return app
 

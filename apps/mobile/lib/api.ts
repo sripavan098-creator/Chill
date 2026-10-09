@@ -21,15 +21,20 @@ import { mockVerify, mockChallengePhrase } from '@/lib/mockVoiceVerification';
 import { STORAGE_KEYS, readJson, storage, writeJson } from '@/lib/storage';
 import {
   createRemoteEnrollment,
+  deleteRemoteAccount,
   deleteRemoteProfile,
+  fetchVersionPolicy,
   requestVoiceChallenge,
+  sendRemoteFeedback,
   setRemoteConsent,
   verifyRemoteVoice,
 } from '@/lib/voiceApiClient';
 import type { RemoteEnrollmentSample, VoiceChallenge } from '@/lib/voiceApiClient';
+import { APP_VERSION, VersionVerdict, evaluateVersionPolicy, unknownVerdict } from '@/lib/appVersion';
 import {
   ConsentRecord,
   EnrollmentClip,
+  FeedbackKind,
   VerificationOutcome,
   VerificationResult,
   VoiceProfile,
@@ -222,4 +227,56 @@ export async function verifyVoice(
   }
 
   return mockVerify(forcedOutcome, attempt);
+}
+
+/**
+ * Deletes the whole account: voice profile, consent, memories and the device
+ * token. Beyond the profile delete, this clears the server-side owner so a
+ * fresh start is truly fresh.
+ */
+export async function deleteAccount(): Promise<void> {
+  await delay(400);
+  if (USE_REMOTE_API) {
+    await deleteRemoteAccount();
+  }
+  await storage.clear();
+}
+
+/**
+ * Sends feedback. Without a backend the report is dropped on the floor rather
+ * than queued, since there is nowhere durable to keep it.
+ */
+export async function sendFeedback(
+  kind: FeedbackKind,
+  message: string,
+  platform: string,
+): Promise<void> {
+  await delay(300);
+  if (!USE_REMOTE_API) return;
+  await sendRemoteFeedback({
+    kind,
+    message,
+    appVersion: APP_VERSION,
+    platform,
+  });
+}
+
+/**
+ * Checks this build against the backend version policy.
+ *
+ * Fails open: any error or missing backend returns `unknown`, and the caller
+ * treats that as "keep working".
+ */
+export async function checkAppVersion(): Promise<VersionVerdict> {
+  if (!USE_REMOTE_API) return unknownVerdict();
+  try {
+    const policy = await fetchVersionPolicy();
+    return evaluateVersionPolicy({
+      minimum_supported: policy.minimumSupported,
+      latest: policy.latest,
+      update_url: policy.updateUrl,
+    });
+  } catch {
+    return unknownVerdict();
+  }
 }

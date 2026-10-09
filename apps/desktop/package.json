@@ -1,0 +1,21 @@
+{
+  "name": "chill-desktop",
+  "version": "0.3.0",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "build:web": "npm --prefix ../mobile run export:web",
+    "start": "npm run build:web && electron .",
+    "dist": "npm run build:web && electron-builder"
+  },
+  "build": {
+    "appId": "com.chill.assistant.desktop",
+    "productName": "Chill",
+    "files": ["main.js"],
+    "extraResources": [{ "from": "../mobile/dist", "to": "web" }]
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  }
+}

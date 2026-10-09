@@ -12,7 +12,6 @@ request scope and discarded; nothing is written.
 from __future__ import annotations
 
 import base64
-import binascii
 import json
 from collections.abc import AsyncIterator
 
@@ -27,6 +26,7 @@ from app.assistant.action_calls import ActionProposal, extract_action
 from app.assistant.prompts import build_system_prompt
 from app.core.audio import AudioDecodeError, prepare
 from app.core.errors import ChillError, NotFoundError, ValidationError
+from app.core.uploads import decode_audio_upload
 from app.db.models import ActionRequest, ChatMessage, Memory
 from app.schemas.assistant import (
     ChatHistoryResponse,
@@ -407,12 +407,17 @@ async def transcribe(
     returned, and it is not stored. This is dictation, not verification: it does
     not identify the speaker and must not be used as an authentication check.
     """
-    try:
-        audio = base64.b64decode(payload.audio_base64, validate=True)
-    except (binascii.Error, ValueError) as exc:
-        raise ValidationError("The sample is not valid base64 audio.") from exc
-    if not audio:
-        raise ValidationError("The sample is empty.")
+    settings = request.app.state.settings
+    await limits.enforce_rate_limit(
+        session,
+        scope="stt",
+        subject=device.id,
+        limit=settings.stt_rate_limit,
+        window_seconds=settings.rate_limit_window_seconds,
+    )
+    audio = decode_audio_upload(
+        payload.audio_base64, max_bytes=settings.max_audio_bytes
+    )
 
     transcriber = request.app.state.transcriber
     try:

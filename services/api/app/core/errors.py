@@ -51,6 +51,13 @@ class RateLimitedError(ChillError):
     code = "RATE_LIMITED"
 
 
+class PayloadTooLargeError(ChillError):
+    """The uploaded body or file exceeds the configured limit."""
+
+    status_code = 413
+    code = "PAYLOAD_TOO_LARGE"
+
+
 class SampleQualityError(ChillError):
     """The submitted audio was unusable (too quiet, noisy, clipped, no speech).
 

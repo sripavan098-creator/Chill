@@ -7,7 +7,7 @@ import { colors } from './colors';
  */
 export const shadows: Record<'card' | 'button', ViewStyle> = {
   card: {
-    shadowColor: '#0F172A',
+    shadowColor: '#241D17',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.06,
     shadowRadius: 12,

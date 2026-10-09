@@ -168,13 +168,39 @@ def decode_audio(data: bytes) -> tuple[np.ndarray, int]:
         return _decode_raw_pcm(data)
 
 
+def _resample_numpy(
+    samples: np.ndarray, source_rate: int, target_rate: int
+) -> np.ndarray:
+    """Linear-interpolation resampler.
+
+    Used when torchaudio is not installed (the `speaker` extra is optional), so
+    decoding a non-16 kHz recording does not fail on a base install. Lower
+    quality than the sinc resampler, which is why torchaudio is preferred when
+    present.
+    """
+    if samples.size == 0 or source_rate <= 0 or target_rate <= 0:
+        return samples.astype(np.float32)
+    duration = samples.size / source_rate
+    target_count = max(int(round(duration * target_rate)), 1)
+    source_positions = np.arange(samples.size, dtype=np.float64)
+    target_positions = np.linspace(0.0, samples.size - 1, target_count)
+    return np.interp(target_positions, source_positions, samples).astype(np.float32)
+
+
 def resample(samples: np.ndarray, source_rate: int, target_rate: int = TARGET_SAMPLE_RATE):
-    """Resample to the target rate using torchaudio's sinc resampler."""
+    """Resample to the target rate.
+
+    Prefers torchaudio's sinc resampler and falls back to linear interpolation
+    when the optional `speaker` extra is not installed.
+    """
     if source_rate == target_rate:
         return samples.astype(np.float32)
 
-    import torch
-    import torchaudio
+    try:
+        import torch
+        import torchaudio
+    except ImportError:
+        return _resample_numpy(samples, source_rate, target_rate)
 
     tensor = torch.from_numpy(samples.astype(np.float32))
     resampled = torchaudio.functional.resample(tensor, source_rate, target_rate)

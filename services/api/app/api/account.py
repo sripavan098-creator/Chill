@@ -1,32 +1,19 @@
 """Account deletion.
 
 Deleting the account is the highest-risk action in the app, so it requires an
-explicit step-up confirmation. It removes the owner, their devices, consent
-records, enrollment and embeddings in one transaction.
+explicit step-up confirmation. The actual purge lives in
+`app.services.account_deletion` so profile deletion and account deletion remove
+exactly the same set of rows.
 """
 
 from __future__ import annotations
 
 from fastapi import APIRouter
-from sqlalchemy import delete
 
 from app.api.deps import DeviceDep, SessionDep
 from app.core.errors import ValidationError
-from app.db.models import (
-    ActionRequest,
-    ChatMessage,
-    ConsentRecord,
-    Device,
-    Enrollment,
-    EnrollmentSample,
-    Memory,
-    Owner,
-    SampleFingerprint,
-    VerificationAttempt,
-    VerificationChallenge,
-)
 from app.schemas.voice import DeleteAccountRequest, DeleteResponse
-from app.services import audit
+from app.services.account_deletion import delete_owner_data
 
 router = APIRouter(tags=["account"])
 
@@ -42,54 +29,7 @@ async def delete_account(
     if payload.confirm != DELETE_CONFIRMATION:
         raise ValidationError("Deleting the account requires confirmation.")
 
-    owner_id = device.owner_id
-
-    enrollment_ids = (
-        await session.execute(
-            Enrollment.__table__.select().with_only_columns(Enrollment.id).where(
-                Enrollment.owner_id == owner_id
-            )
-        )
-    ).scalars().all()
-
-    if enrollment_ids:
-        await session.execute(
-            delete(EnrollmentSample).where(
-                EnrollmentSample.enrollment_id.in_(enrollment_ids)
-            )
-        )
-        await session.execute(delete(Enrollment).where(Enrollment.id.in_(enrollment_ids)))
-
-    await session.execute(delete(ConsentRecord).where(ConsentRecord.owner_id == owner_id))
-    await session.execute(
-        delete(VerificationAttempt).where(VerificationAttempt.owner_id == owner_id)
-    )
-    await session.execute(
-        delete(SampleFingerprint).where(SampleFingerprint.owner_id == owner_id)
-    )
-    await session.execute(
-        delete(VerificationChallenge).where(VerificationChallenge.owner_id == owner_id)
-    )
-
-    # Assistant data: the conversation and the memories the owner asked Chill to
-    # keep are personal data too, so they go with the account.
-    await session.execute(delete(ChatMessage).where(ChatMessage.owner_id == owner_id))
-    await session.execute(delete(Memory).where(Memory.owner_id == owner_id))
-    await session.execute(
-        delete(ActionRequest).where(ActionRequest.owner_id == owner_id)
-    )
-
-    # Keep the audit trail but detach it from the deleted owner.
-    await audit.record_event(
-        session,
-        event="account.deleted",
-        outcome="ok",
-        owner_id=None,
-        device_id=device.id,
-    )
-
-    await session.execute(delete(Device).where(Device.owner_id == owner_id))
-    await session.execute(delete(Owner).where(Owner.id == owner_id))
+    await delete_owner_data(session, owner_id=device.owner_id, device_id=device.id)
     await session.commit()
 
     return DeleteResponse(deleted=True, detail="Account and voice data deleted.")

@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/Card';
 import { Body, Caption } from '@/components/ui/TextBlock';
 import { RecordingTimer } from '@/components/voice/RecordingTimer';
 import { MAX_RECORDING_MS, MIN_RECORDING_MS } from '@/features/voice-auth/validation';
+import { gradeSample } from '@/lib/calibration';
 import { colors, spacing } from '@/theme';
 import { EnrollmentClip, EnrollmentPhrase } from '@/types';
 
@@ -56,6 +57,12 @@ export function PhraseCard({
     clip.status === 'processing';
   const isRecording = clip.status === 'recording';
 
+  // Calibration guidance is only shown once a sample exists.
+  const calibration =
+    isRecorded && clip.durationMs != null
+      ? gradeSample(clip.durationMs, clip.quality ?? 1)
+      : null;
+
   return (
     <Card
       tone={isRecorded ? 'success' : 'default'}
@@ -64,7 +71,14 @@ export function PhraseCard({
       <View style={styles.header}>
         <Caption>{`Phrase ${phrase.index + 1} of 5`}</Caption>
         <View testID={`phrase-status-${phrase.id}`}>
-          <Badge label={STATUS_LABEL[clip.status]} tone={STATUS_TONE[clip.status]} />
+          <Badge
+            label={
+              calibration?.band === 'strong' ? 'Strong' : STATUS_LABEL[clip.status]
+            }
+            tone={
+              calibration?.band === 'weak' ? 'warning' : STATUS_TONE[clip.status]
+            }
+          />
         </View>
       </View>
 
@@ -80,6 +94,13 @@ export function PhraseCard({
 
       {isRecorded && clip.durationMs != null ? (
         <Caption>{`Sample length ${(clip.durationMs / 1000).toFixed(1)}s`}</Caption>
+      ) : null}
+
+      {calibration ? (
+        <Caption
+          color={calibration.band === 'weak' ? colors.warning : colors.success}>
+          {calibration.hint}
+        </Caption>
       ) : null}
 
       {clip.status === 'processing' ? (

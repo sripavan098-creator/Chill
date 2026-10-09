@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Chill — the assistant that knows it's you</title>
+<meta name="description" content="Chill is a personal AI assistant that recognizes its owner by voice. It asks first, keeps no recordings, and lets you delete your voice any time.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=DM+Sans:wght@400;500;700&display=swap">
+<style>
+:root{--bg:#f6f0e6;--card:#fffaf1;--ink:#241d17;--mute:#6f6458;--rule:#241d1722;--voice:#e8602c;--calm:#4f8a76;--cool:#9a9186;
+--d:"Fraunces",Georgia,"Times New Roman",serif;--b:"DM Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#17120e;--card:#211a14;--ink:#f4ece0;--mute:#b3a695;--rule:#f4ece026;--voice:#ff9a68;--calm:#86c3ad;--cool:#8a8176}}
+:root[data-theme="dark"]{--bg:#17120e;--card:#211a14;--ink:#f4ece0;--mute:#b3a695;--rule:#f4ece026;--voice:#ff9a68;--calm:#86c3ad;--cool:#8a8176}
+html{scroll-padding-top:env(safe-area-inset-top,0px);scroll-behavior:smooth}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.65 var(--b)}
+#orb{position:fixed;inset:0;width:100%;height:100%;z-index:0;transition:opacity .4s}
+main,footer,header{position:relative;z-index:1}
+a{color:var(--ink)}a:hover{color:var(--voice)}
+header{position:fixed;top:env(safe-area-inset-top,0px);left:0;right:0;z-index:3;display:flex;justify-content:space-between;align-items:center;padding:16px 24px}
+.w{font:700 28px var(--d);letter-spacing:-.02em}.w i{color:var(--voice);font-style:normal}
+.chip{font-size:13px;padding:6px 14px;border-radius:99px;background:var(--card);border:1px solid var(--rule);color:var(--mute)}
+.chip.ok{color:var(--calm);border-color:var(--calm)}.chip.no{color:var(--mute)}
+.sec{min-height:100vh;display:flex;align-items:center;padding:100px 24px 48px}
+.hero{padding-bottom:12vh;align-items:flex-end}
+.hero div{max-width:40rem}
+h1{font:700 clamp(44px,8vw,104px)/.98 var(--d);letter-spacing:-.03em;margin:0 0 22px}
+h1 em{font-style:italic;color:var(--voice);font-weight:500}
+h2{font:700 clamp(30px,4vw,48px)/1.05 var(--d);letter-spacing:-.02em;margin:0 0 14px}
+p{margin:0 0 14px;color:var(--mute)}
+.lead{font-size:19px;color:var(--ink)}
+.btn{display:inline-block;padding:13px 22px;border-radius:99px;background:var(--ink);color:var(--bg);text-decoration:none;font-weight:500;border:0;font:500 15px var(--b);cursor:pointer}
+.btn:hover:not(:disabled){background:var(--voice);color:#fff}
+.btn.g{background:none;color:var(--ink);border:1.5px solid var(--ink)}.btn.g:hover:not(:disabled){background:var(--ink);color:var(--bg)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid var(--voice);outline-offset:3px}
+.talk{justify-content:center}
+.card{width:min(960px,100%);background:var(--card);border:1px solid var(--rule);border-radius:28px;padding:28px;display:grid;grid-template-columns:1fr 1.1fr;gap:28px}
+.row{display:flex;flex-wrap:wrap;gap:10px;margin:12px 0}
+label{display:flex;gap:10px;align-items:flex-start;font-size:15px;cursor:pointer;margin:14px 0 4px}
+input[type=checkbox]{accent-color:#e8602c;width:18px;height:18px;margin-top:3px}
+#chat{height:340px;overflow:auto;display:flex;flex-direction:column;gap:10px;padding:4px}
+.m{max-width:86%;padding:11px 15px;border-radius:20px;font-size:15px;line-height:1.5}
+.c{background:var(--bg);border:1px solid var(--rule);border-bottom-left-radius:6px;align-self:flex-start}
+.u{background:var(--voice);color:#fff;border-bottom-right-radius:6px;align-self:flex-end}
+.n{align-self:center;font-size:12.5px;color:var(--mute);padding:0}
+.meter{height:8px;border-radius:9px;background:var(--rule);margin:8px 0 4px;position:relative;overflow:hidden}
+.meter i{position:absolute;inset:0 auto 0 0;width:0;background:var(--calm);border-radius:9px;transition:width .5s}.meter i.x{background:var(--cool)}
+.sm{font-size:13px;color:var(--mute)}
+.kept{margin:16px 0 0;font-size:13px;color:var(--mute);border-top:1px solid var(--rule);padding-top:10px}
+.pr{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px;max-width:1000px;width:100%}
+.pr div{background:var(--card);border:1px solid var(--rule);border-radius:22px;padding:22px}
+.pr b{display:block;font:700 21px/1.15 var(--d);margin-bottom:8px}.pr p{margin:0;font-size:15px}
+.wrap{max-width:1000px;width:100%}
+.today{background:var(--card);border-top:1px solid var(--rule);padding:80px 24px}.today div{max-width:720px;margin:0 auto}
+footer{padding:26px 24px 40px;font-size:13px;color:var(--mute);display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;background:var(--bg)}
+@media(max-width:780px){.card{grid-template-columns:1fr;padding:20px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.meter i,#orb{transition:none}}
+</style>
+</head>
+<body>
+<canvas id="orb" aria-hidden="true"></canvas>
+<header><span class="w">chill<i>.</i></span><span class="chip no" id="chip">No voice enrolled</span></header>
+<main>
+<section class="sec hero"><div>
+<h1>Say hi.<br>Chill knows<br><em>it's you.</em></h1>
+<p class="lead">A personal AI assistant that recognizes its owner by voice. It asks before it learns your voice, keeps no recordings, and lets you delete it whenever you like.</p>
+<a class="btn" href="#talk">Try saying hello</a>
+</div></section>
+
+<section class="sec talk" id="talk"><div class="card">
+<div>
+<h2>Meet your voice</h2>
+<p>A pretend conversation. No microphone is used and the match scores are made up for this demo.</p>
+<label><input type="checkbox" id="cs"> It's okay for Chill to remember an encrypted voiceprint of me.</label>
+<div class="row"><button class="btn" id="en">Enroll my voice</button></div>
+<div class="row"><button class="btn g" id="own">"Hey Chill" (it's me)</button><button class="btn g" id="oth">"Hey Chill" (a friend)</button></div>
+<div class="row"><button class="btn g" id="hr">"Send ₹5,000 to Amma"</button></div>
+<div class="sm">How well it matched (demo) <span id="sv"></span></div><div class="meter"><i id="mb"></i></div>
+<div class="row"><button class="btn g" id="del">Delete my voice</button><button class="btn g" id="rs">Start over</button></div>
+</div>
+<div><div id="chat" role="log" aria-live="polite"></div>
+<div class="kept" id="kept">What Chill keeps: events only, never audio or voice data.</div></div>
+</div></section>
+
+<section class="sec"><div class="wrap">
+<h2>Six promises, in plain words</h2>
+<div class="pr">
+<div><b>Your voice isn't the only lock</b><p>Big actions, like moving money, ask for a stronger check than a voice match.</p></div>
+<div><b>Nothing records you</b><p>Enrolling keeps an encrypted voiceprint and throws the audio away.</p></div>
+<div><b>You can walk away</b><p>Delete your voice profile or your whole account at any time.</p></div>
+<div><b>It asks first</b><p>No consent, no enrollment. The backend refuses.</p></div>
+<div><b>No sneaky listening</b><p>Chill doesn't listen in the background.</p></div>
+<div><b>No big claims</b><p>It says what it can't do yet, right below.</p></div>
+</div></div></section>
+
+<section class="today"><div>
+<h2>Where Chill is today</h2>
+<p>This is version 0.3, the voice backend: consent checks, encrypted voiceprints, match scoring with rate limits and lockout, an event-only audit log, and delete endpoints. The mobile app talks to it behind a flag.</p>
+<p>The voiceprint model is a placeholder until milestone 4, so this isn't real speaker verification yet. The conversation above is a simulation.</p>
+<p><a href="https://github.com/sripavan098-creator/Chill">See the project on GitHub →</a></p>
+</div></section>
+</main>
+<footer><span>Chill — a personal AI assistant that recognizes its owner by voice.</span><span>React Native · Expo · FastAPI · PostgreSQL</span></footer>
+
+<script>
+(()=>{const $=id=>document.getElementById(id),th=.8,S=window.CH={enr:false,dev:1.6,tg:1.6,a:0,at:0,hold:0};
+let enr=false,fails=0,lock=false,ver=false,step=0;
+const say=(w,t)=>{const e=document.createElement('div');e.className='m '+(w==='u'?'u':w==='n'?'n':'c');e.textContent=t;const c=$('chat');c.appendChild(e);c.scrollTop=1e9};
+const keep=t=>{$('kept').textContent='What Chill keeps: '+t+' (events only, never audio or voice data)'};
+function R(){S.enr=enr;const c=$('chip');
+ const t=lock?['Voice unlock paused',''] :ver?['Recognized you','ok']:enr?['Voice enrolled','ok']:['No voice enrolled','no'];
+ c.textContent=t[0];c.className='chip '+(t[1]||'no');$('own').disabled=$('oth').disabled=lock;
+ $('hr').textContent=step?'Approve with a stronger check':'"Send ₹5,000 to Amma"';
+ if(!lock&&!S.hold){S.tg=enr?.2:1.6;S.at=0}if(window.CHdraw)CHdraw()}
+function show(s,ok){$('sv').textContent=s.toFixed(2);const m=$('mb');m.style.width=s*100+'%';m.className=ok?'':'x'}
+function res(s,ok){S.hold=1;S.tg=(1-s)*2.6;S.at=ok?0:1;clearTimeout(res.t);if(!lock)res.t=setTimeout(()=>{S.hold=0;R()},2600)}
+$('en').onclick=()=>{
+ if(!$('cs').checked){say('c',"I can't learn your voice until you say it's okay. Tick the box first.");keep('a refused enrollment');return}
+ if(enr){say('c',"I already know your voice.");return}
+ enr=true;say('n','Consent recorded');say('c',"Thanks. I've kept a locked-away voiceprint of you. The recording itself is gone.");keep('your consent and the enrollment');R()};
+function V(s,who){say('u','"Hey Chill"');
+ if(!enr){say('c',"I don't know your voice yet, so I can't tell who's talking. Enroll first.");keep('a refused check');return}
+ const ok=s>=th;show(s,ok);
+ if(ok){ver=true;fails=0;say('c',"Hi, that sounds like you. What can I do?");keep('an accepted voice check')}
+ else{ver=false;fails++;say('c',fails<3?"I don't recognize that voice, so I'll hold off. Try again?":"That's a few tries. I'm pausing voice unlock for now.");keep('a rejected voice check');if(fails>=3){lock=true;say('n','Demo lockout after 3 misses. Real limits live in the backend.')}}
+ step=0;res(s,ok);R()}
+$('own').onclick=()=>V(.88+Math.random()*.07);
+$('oth').onclick=()=>V(.25+Math.random()*.3);
+$('hr').onclick=()=>{say('u','"Send ₹5,000 to Amma"');
+ if(!ver){say('c',"I need to hear you first. Say hello so I can check.");return}
+ if(!step){step=1;say('c',"Sending money is a big step. A voice match isn't enough, so I need a stronger check from you.");R();return}
+ step=0;ver=false;say('c',"Approved. Sent. Thanks for confirming.");keep('a high-risk approval');R()};
+$('del').onclick=()=>{if(!enr){say('c',"There's no voice profile to delete.");return}enr=false;ver=false;step=0;fails=0;say('c',"Done. Your voice profile is deleted.");keep('a deletion');R()};
+$('rs').onclick=()=>{enr=ver=lock=false;fails=step=0;S.hold=0;$('chat').innerHTML='';$('cs').checked=false;$('sv').textContent='';$('mb').style.width='0';$('kept').textContent='What Chill keeps: events only, never audio or voice data.';say('c',"Hi, I'm Chill. Want me to learn your voice? I'll only do it if you say yes.");R()};
+say('c',"Hi, I'm Chill. Want me to learn your voice? I'll only do it if you say yes.");R()})();
+</script>
+<script>
+(()=>{const S=window.CH,R=matchMedia('(prefers-reduced-motion:reduce)').matches,cv=document.getElementById('orb'),x=cv.getContext('2d');
+if(!x)return;const N=96,K=6,nz=[...Array(N*K)].map(()=>Math.random()*2-1),ph=[...Array(N*K)].map(()=>Math.random()*6.28);
+let W,H,dpr,tt=0,mx=0,my=0;
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim(),f=t=>Math.sin(3*t)*.05+Math.sin(7*t+1)*.03+Math.sin(11*t+2)*.015;
+function size(){dpr=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;cv.width=W*dpr;cv.height=H*dpr;x.setTransform(dpr,0,0,dpr,0,0)}
+addEventListener('pointermove',e=>{mx=e.clientX/W-.5;my=e.clientY/H-.5});
+function ring(R0,k,d,col,al,lw){x.beginPath();for(let i=0;i<=N;i++){const j=i%N,t=j/N*6.2832,w=nz[k*N+j]*Math.sin(tt*1.3+ph[k*N+j])*d*.07,r=R0*(1+f(t)+w);const px=Math.cos(t)*r,py=Math.sin(t)*r;i?x.lineTo(px,py):x.moveTo(px,py)}x.closePath();x.globalAlpha=al;x.strokeStyle=col;x.lineWidth=lw;x.stroke()}
+function draw(){tt+=R?0:.016;const mob=W<780,cx=W*(mob?.5:.7)+mx*18,cy=H*(mob?.34:.5)+my*14,s=Math.min(W,H)*(mob?.3:.34),br=1+(R?0:Math.sin(tt*1.1)*.025);
+ x.clearRect(0,0,W,H);S.dev+=(S.tg-S.dev)*.05;S.a+=(S.at-S.a)*.07;
+ const v=css('--voice'),c=css('--cool'),ok=css('--calm'),d=Math.max(0,S.dev+(S.hold||R?0:Math.sin(tt*1.7)*.06)),a=S.a;
+ const p=Math.min(scrollY/(H*.8),1);cv.style.opacity=1-p*.7;
+ x.save();x.translate(cx,cy);x.scale(br,br);
+ const g=x.createRadialGradient(0,0,0,0,0,s*1.2);g.addColorStop(0,v);g.addColorStop(1,'transparent');x.globalAlpha=(.2+(S.enr?.1:0))*(1-a);x.fillStyle=g;x.beginPath();x.arc(0,0,s*1.2,0,6.2832);x.fill();
+ for(let k=0;k<K;k++){const r=s*(.5+.1*k);ring(r,k,d*(1+k*.15),v,(1-a)*(.85-k*.1),2.2-k*.2);if(a>.01)ring(r,k,d*(1+k*.15),c,a*(.8-k*.1),2.2-k*.2)}
+ if(S.enr){x.setLineDash([3,7]);ring(s*.8,0,0,ok,.9,1.6);x.setLineDash([])}
+ x.restore();x.globalAlpha=1}
+window.CHdraw=draw;size();addEventListener('resize',()=>{size();draw()});
+if(R){draw();addEventListener('scroll',draw)}else{const l=()=>{draw();requestAnimationFrame(l)};l()}
+})();
+</script>
+</body>
+</html>
